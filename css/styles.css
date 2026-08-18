@@ -4,7 +4,7 @@
    Tipografía: Space Grotesk (display) + Inter (UI) + IBM Plex Mono (datos/precios)
    Firma visual: ticket de papel con borde perforado en zig-zag
    ========================================================= */
-
+ 
 :root{
   --mango: #FF8A3D;
   --mango-deep: #FF6A1A;
@@ -18,17 +18,17 @@
   --line: #E4DFD3;
   --danger: #C1432B;
   --success: #2F8F5B;
-
+ 
   --font-display: 'Space Grotesk', system-ui, sans-serif;
   --font-body: 'Inter', system-ui, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
-
+ 
   --radius: 14px;
   --radius-sm: 8px;
   --shadow: 0 8px 24px rgba(27,30,35,0.10);
   --shadow-sm: 0 2px 8px rgba(27,30,35,0.08);
 }
-
+ 
 *{ box-sizing: border-box; }
 [hidden]{ display: none !important; }
 html,body{ height:100%; }
@@ -43,11 +43,11 @@ body{
 img{ max-width:100%; display:block; }
 button{ font-family: inherit; cursor:pointer; }
 input, select, textarea{ font-family: inherit; }
-
+ 
 @media (prefers-reduced-motion: reduce){
   *{ animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
 }
-
+ 
 /* ---------- Shell ---------- */
 .app-shell{
   max-width: 560px;
@@ -57,7 +57,7 @@ input, select, textarea{ font-family: inherit; }
   display:flex;
   flex-direction: column;
 }
-
+ 
 .topbar{
   position: sticky; top:0; z-index: 20;
   display:flex; align-items:center; justify-content:space-between;
@@ -77,7 +77,7 @@ input, select, textarea{ font-family: inherit; }
 .brand-text{ display:flex; flex-direction:column; line-height:1.15; }
 .brand-text strong{ font-family: var(--font-display); font-size:15px; letter-spacing:0.02em; }
 .brand-text small{ color:#B9BEC7; font-size:11px; }
-
+ 
 .icon-btn{
   width:36px; height:36px; border-radius:50%;
   border:1px solid rgba(255,255,255,0.18);
@@ -85,7 +85,7 @@ input, select, textarea{ font-family: inherit; }
   font-size:16px; display:flex; align-items:center; justify-content:center;
 }
 .icon-btn:hover{ background: rgba(255,255,255,0.14); }
-
+ 
 /* ---------- Tabs ---------- */
 .tabs{
   display:flex; gap:6px; padding: 10px 16px 0;
@@ -93,8 +93,9 @@ input, select, textarea{ font-family: inherit; }
 }
 .tab{
   flex:1; border:none; background: transparent; color:#9AA0AA;
-  padding:10px 8px; font-weight:600; font-size:13.5px; border-radius: 10px 10px 0 0;
-  display:flex; align-items:center; justify-content:center; gap:6px;
+  padding:10px 4px; font-weight:600; font-size:12.5px; border-radius: 10px 10px 0 0;
+  display:flex; align-items:center; justify-content:center; gap:5px;
+  white-space:nowrap;
 }
 .tab.active{ background: var(--paper-dim); color: var(--ink); }
 .tab-count{
@@ -102,13 +103,13 @@ input, select, textarea{ font-family: inherit; }
   border-radius:999px; padding:1px 7px; font-family: var(--font-mono);
 }
 .tab.active .tab-count{ background: var(--teal); }
-
+ 
 /* ---------- Views ---------- */
 .views{ flex:1; padding: 16px; padding-bottom: 40px; }
 .view{ display:none; }
 .view.active{ display:block; animation: fadeUp .25s ease; }
 @keyframes fadeUp{ from{ opacity:0; transform: translateY(6px);} to{ opacity:1; transform:none; } }
-
+ 
 /* ---------- Form ---------- */
 .quote-form{ display:flex; flex-direction:column; gap:14px; }
 .field-row{ display:flex; gap:10px; }
@@ -123,7 +124,7 @@ input, select, textarea{ font-family: inherit; }
   border-color: var(--mango); box-shadow: 0 0 0 3px rgba(255,138,61,0.18);
 }
 .field textarea{ resize: vertical; }
-
+ 
 .section-label{
   display:flex; align-items:baseline; justify-content:space-between;
   font-family: var(--font-display); font-weight:700; font-size:13px;
@@ -133,7 +134,7 @@ input, select, textarea{ font-family: inherit; }
 .section-label .hint{
   font-family: var(--font-mono); text-transform:none; letter-spacing:0; color: var(--muted); font-size:12px;
 }
-
+ 
 /* ---------- Items ---------- */
 .items-list{ display:flex; flex-direction:column; gap:10px; }
 .item-card{
@@ -154,14 +155,14 @@ input, select, textarea{ font-family: inherit; }
 .item-thumb img{ width:100%; height:100%; object-fit:cover; }
 .item-thumb .placeholder{ font-size:20px; color: var(--muted); }
 .item-thumb input[type=file]{ position:absolute; inset:0; opacity:0; cursor:pointer; }
-
+ 
 .item-desc{
   grid-column:2; grid-row:1;
   border:none; border-bottom:1px solid var(--line); padding:4px 0;
   font-size:14px; font-weight:600; outline:none; background:transparent;
 }
 .item-desc:focus{ border-color: var(--mango); }
-
+ 
 .item-nums{ grid-column:2; grid-row:2; display:flex; gap:8px; align-items:center; }
 .item-nums .mini-field{ display:flex; align-items:center; gap:4px; }
 .item-nums label{ font-size:10.5px; color:var(--muted); font-family: var(--font-mono); }
@@ -171,20 +172,20 @@ input, select, textarea{ font-family: inherit; }
 }
 .item-nums input:focus{ border-color: var(--mango); }
 .item-nums .price-input{ width:70px; }
-
+ 
 .item-remove{
   grid-column:3; grid-row:1/3; align-self:center;
   border:none; background:transparent; color: var(--danger);
   font-size:18px; width:28px; height:28px; border-radius:50%;
 }
 .item-remove:hover{ background: rgba(193,67,43,0.1); }
-
+ 
 .item-line-total{
   grid-column:2; grid-row:2; justify-self:end; align-self:center;
   font-family: var(--font-mono); font-weight:600; font-size:13px; color: var(--teal);
   display:none;
 }
-
+ 
 .btn-add{
   border:1.5px dashed var(--mango); background: rgba(255,138,61,0.06); color: var(--mango-deep);
   border-radius: var(--radius-sm); padding:10px; font-weight:700; font-size:14px;
@@ -192,7 +193,7 @@ input, select, textarea{ font-family: inherit; }
 }
 .btn-add:hover{ background: rgba(255,138,61,0.12); }
 .btn-add .plus{ font-size:16px; }
-
+ 
 /* ---------- Discount ---------- */
 .discount-box{
   background:#fff; border:1px solid var(--line); border-radius: var(--radius-sm); padding:12px;
@@ -208,7 +209,7 @@ input, select, textarea{ font-family: inherit; }
   border:1px solid var(--line); border-radius:6px; padding:8px; font-family: var(--font-mono);
   width:100px;
 }
-
+ 
 /* ---------- Ticket (signature element) ---------- */
 .ticket-wrap{ margin-top: 22px; }
 .ticket-edge{
@@ -221,7 +222,7 @@ input, select, textarea{ font-family: inherit; }
 }
 .ticket-edge.top{ background-position: bottom; }
 .ticket-edge.bottom{ transform: rotate(180deg); }
-
+ 
 .ticket{
   background: var(--paper);
   padding: 22px 20px;
@@ -233,12 +234,12 @@ input, select, textarea{ font-family: inherit; }
 .tk-brand{ font-family: var(--font-display); font-weight:700; font-size:19px; letter-spacing:0.02em; }
 .tk-sub{ font-size:11px; color: var(--muted); margin-top:2px; }
 .tk-folio{ font-size:11px; color: var(--teal); margin-top:6px; letter-spacing:0.04em; }
-
+ 
 .tk-divider{ border-top:1px dashed var(--ink-soft); opacity:0.35; margin: 12px 0; }
-
+ 
 .tk-meta{ display:flex; justify-content:space-between; font-size:12px; margin-bottom:2px; }
 .tk-meta span:first-child{ color: var(--muted); }
-
+ 
 .tk-items{ display:flex; flex-direction:column; gap:12px; margin: 14px 0; }
 .tk-item{ display:flex; gap:10px; align-items:flex-start; }
 .tk-thumb{
@@ -251,9 +252,9 @@ input, select, textarea{ font-family: inherit; }
 .tk-item-name{ font-size:12.5px; font-weight:600; font-family: var(--font-body); color: var(--ink); }
 .tk-item-calc{ font-size:11px; color: var(--muted); margin-top:2px; }
 .tk-item-amount{ font-size:12.5px; font-weight:600; white-space:nowrap; align-self:center; }
-
+ 
 .tk-empty-items{ text-align:center; color: var(--muted); font-size:12px; padding: 10px 0; font-family: var(--font-body); }
-
+ 
 .tk-totals{ margin-top:6px; display:flex; flex-direction:column; gap:4px; }
 .tk-row{ display:flex; justify-content:space-between; font-size:12.5px; }
 .tk-row.muted{ color: var(--muted); }
@@ -262,21 +263,21 @@ input, select, textarea{ font-family: inherit; }
   font-size:16px; font-weight:700; font-family: var(--font-display);
   border-top:1.5px solid var(--ink); padding-top:8px; margin-top:4px;
 }
-
+ 
 .tk-notes{
   margin-top:14px; font-size:11.5px; font-family: var(--font-body);
   color: var(--ink-soft); background: var(--teal-soft); border-radius:8px; padding:8px 10px;
 }
-
+ 
 .tk-footer{ text-align:center; margin-top:16px; font-size:11px; color: var(--muted); font-family: var(--font-body); }
 .tk-footer .thanks{ font-weight:600; color: var(--teal); display:block; margin-bottom:4px; font-family: var(--font-display); }
-
+ 
 .tk-barcode{
   margin-top:12px; height:28px;
   background: repeating-linear-gradient(90deg, var(--ink) 0 2px, transparent 2px 5px);
   opacity:0.7;
 }
-
+ 
 /* ---------- Action bar ---------- */
 .action-bar{ display:flex; gap:10px; margin-top:18px; }
 .btn-primary, .btn-secondary, .btn-danger{
@@ -289,7 +290,7 @@ input, select, textarea{ font-family: inherit; }
 .btn-secondary:hover{ background: var(--paper-dim); }
 .btn-danger{ background:#fff; color: var(--danger); border:1px solid rgba(193,67,43,0.4); }
 .btn-danger:hover{ background: rgba(193,67,43,0.06); }
-
+ 
 /* ---------- Saved list ---------- */
 .saved-list{ display:flex; flex-direction:column; gap:10px; }
 .saved-card{
@@ -301,15 +302,49 @@ input, select, textarea{ font-family: inherit; }
 .saved-main .saved-meta{ display:block; font-size:11.5px; color: var(--muted); margin-top:2px; font-family: var(--font-mono); }
 .saved-amount{ text-align:right; }
 .saved-amount .amt{ font-family: var(--font-mono); font-weight:700; font-size:14px; color: var(--teal); }
+.badge-row{ display:flex; gap:6px; justify-content:flex-end; align-items:center; margin-top:5px; flex-wrap:wrap; }
+.badge-row .status-badge{ margin-top:0; }
 .status-badge{
   display:inline-block; margin-top:4px; font-size:10px; font-weight:700; letter-spacing:0.04em;
   padding:2px 8px; border-radius:999px; text-transform:uppercase;
 }
 .status-badge.activa{ background: rgba(255,138,61,0.15); color: var(--mango-deep); }
 .status-badge.pedido{ background: rgba(47,143,91,0.15); color: var(--success); }
-
+ 
+/* Etapas de pedido / lote (rastreo) */
+.status-badge.stage-preparacion{ background: rgba(107,114,128,0.15); color:#4B5563; }
+.status-badge.stage-comprado{ background: rgba(15,92,86,0.15); color: var(--teal); }
+.status-badge.stage-en_camino{ background: rgba(255,138,61,0.18); color: var(--mango-deep); }
+.status-badge.stage-en_mexico{ background: rgba(46,111,158,0.15); color:#2E6F9E; }
+.status-badge.stage-listo_entrega{ background: rgba(47,143,91,0.15); color: var(--success); }
+ 
+/* Pastilla de % cobrado (verde 80+, amarillo 50+, rojo 30+, morado 10+, gris <10) */
+.pay-pill{
+  display:inline-block; font-family: var(--font-mono); font-size:11px; font-weight:700;
+  padding:2px 9px; border-radius:999px; letter-spacing:0.02em;
+}
+.pay-pill.pill-green{ background: rgba(47,143,91,0.16); color: var(--success); }
+.pay-pill.pill-yellow{ background: rgba(230,164,13,0.18); color:#9A6B00; }
+.pay-pill.pill-red{ background: rgba(193,67,43,0.15); color: var(--danger); }
+.pay-pill.pill-purple{ background: rgba(124,77,191,0.16); color:#6D3FB0; }
+.pay-pill.pill-gray{ background: rgba(107,114,128,0.14); color: var(--muted); }
+ 
 .empty-msg{ text-align:center; color: var(--muted); font-size:13.5px; margin-top:40px; line-height:1.6; }
-
+ 
+.field-note{ font-size:11.5px; color: var(--muted); margin: -6px 0 2px; line-height:1.4; }
+ 
+/* Selector de pedidos dentro del lote */
+.picker-list{ display:flex; flex-direction:column; gap:8px; max-height:260px; overflow-y:auto; }
+.picker-row{
+  display:flex; align-items:center; gap:10px; background:#fff; border:1px solid var(--line);
+  border-radius: var(--radius-sm); padding:10px 12px; cursor:pointer;
+}
+.picker-row:has(.picker-check:checked){ border-color: var(--mango); background: rgba(255,138,61,0.05); }
+.picker-check{ width:18px; height:18px; accent-color: var(--mango-deep); flex-shrink:0; }
+.picker-info{ display:flex; flex-direction:column; gap:1px; min-width:0; }
+.picker-info strong{ font-size:13px; }
+.picker-info small{ font-size:11px; color: var(--muted); font-family: var(--font-mono); }
+ 
 /* ---------- Modals ---------- */
 .modal-backdrop{
   position:fixed; inset:0; background: rgba(27,30,35,0.55); z-index:50;
@@ -336,7 +371,7 @@ input, select, textarea{ font-family: inherit; }
 .modal-foot{ padding:14px 18px; border-top:1px solid var(--line); }
 .modal-foot-split{ display:flex; justify-content:space-between; gap:10px; }
 .modal-foot-right{ display:flex; gap:10px; flex:1; justify-content:flex-end; }
-
+ 
 /* ---------- Edit banner ---------- */
 .edit-banner{
   display:flex; align-items:center; justify-content:space-between; gap:10px;
@@ -348,7 +383,7 @@ input, select, textarea{ font-family: inherit; }
   border:none; background:transparent; color: var(--teal); text-decoration:underline;
   font-size:12.5px; font-weight:700;
 }
-
+ 
 /* ---------- Slide to confirm ---------- */
 .slide-confirm{ margin-top:18px; }
 .slide-track{
@@ -374,7 +409,7 @@ input, select, textarea{ font-family: inherit; }
 .slide-track.confirmed .slide-thumb{ background: linear-gradient(135deg, var(--success), #227048); }
 .slide-track.confirmed .slide-label{ color: var(--success); }
 .slide-track.dragging .slide-thumb{ transition:none; cursor:grabbing; }
-
+ 
 /* ---------- Order info (pedido confirmado) ---------- */
 .order-info{
   margin-top:18px; background:#fff; border:1px solid var(--line); border-radius: var(--radius-sm);
@@ -387,7 +422,7 @@ input, select, textarea{ font-family: inherit; }
 .order-info-grid span{ font-size:10.5px; color: var(--muted); text-transform:uppercase; letter-spacing:0.04em; font-family: var(--font-mono); }
 .order-info-grid strong{ font-size:14px; font-family: var(--font-mono); }
 .order-info-address{ margin-top:10px; padding-top:10px; border-top:1px dashed var(--line); font-size:12.5px; color: var(--ink-soft); }
-
+ 
 /* ---------- Order summary (modal confirmar pedido) ---------- */
 .order-summary{
   background: var(--paper); border:1px solid var(--line); border-radius: var(--radius-sm);
@@ -396,7 +431,7 @@ input, select, textarea{ font-family: inherit; }
 .order-summary .os-row{ display:flex; justify-content:space-between; padding:3px 0; }
 .order-summary .os-row.total{ font-weight:700; font-size:14px; border-top:1px dashed var(--line); margin-top:6px; padding-top:8px; }
 .order-summary .os-client{ font-family: var(--font-body); font-weight:600; margin-bottom:6px; font-size:13px; }
-
+ 
 /* ---------- Toast ---------- */
 .toast{
   position:fixed; left:50%; bottom:26px; transform: translate(-50%, 20px);
