@@ -6,24 +6,24 @@
 <title>DELIVERY GDL · Cotizador</title>
 <meta name="description" content="Generador de cotizaciones profesionales para DELIVERY GDL">
 <meta name="theme-color" content="#FF6A1A">
-
+ 
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icons/favicon-32.png" sizes="32x32">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Cotizador GDL">
-
+ 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-
+ 
 <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
-
+ 
 <div class="app-shell">
-
+ 
   <!-- Top bar -->
   <header class="topbar">
     <div class="brand">
@@ -35,25 +35,26 @@
     </div>
     <button class="icon-btn" id="settingsBtn" title="Configuración" aria-label="Configuración">⚙</button>
   </header>
-
+ 
   <!-- Tabs -->
   <nav class="tabs" role="tablist">
     <button class="tab active" data-tab="nueva" role="tab" aria-selected="true">Nueva</button>
     <button class="tab" data-tab="guardadas" role="tab" aria-selected="false">Activas <span class="tab-count" id="tabCount">0</span></button>
+    <button class="tab" data-tab="pedidos" role="tab" aria-selected="false">Pedidos <span class="tab-count" id="pedidosCount">0</span></button>
   </nav>
-
+ 
   <main class="views">
-
+ 
     <!-- ===================== VISTA: NUEVA COTIZACIÓN ===================== -->
     <section class="view active" id="view-nueva">
-
+ 
       <div class="edit-banner" id="editBanner" hidden>
         <span id="editBannerText">Editando cotización</span>
         <button type="button" id="cancelEditBtn">Cancelar edición</button>
       </div>
-
+ 
       <form id="quoteForm" class="quote-form" autocomplete="off">
-
+ 
         <div class="field-row">
           <div class="field">
             <label for="clientName">Cliente</label>
@@ -64,22 +65,22 @@
             <input type="date" id="quoteDate" required>
           </div>
         </div>
-
+ 
         <div class="section-label">
           <span>Productos</span>
           <span class="hint" id="itemCountHint">0 artículos</span>
         </div>
-
+ 
         <div id="itemsList" class="items-list"></div>
-
+ 
         <button type="button" id="addItemBtn" class="btn-add">
           <span class="plus">+</span> Agregar producto
         </button>
-
+ 
         <div class="section-label">
           <span>Descuento</span>
         </div>
-
+ 
         <div class="discount-box">
           <label class="switch-row">
             <input type="checkbox" id="discountEnabled">
@@ -93,14 +94,14 @@
             <input type="number" id="discountValue" min="0" step="0.01" placeholder="0">
           </div>
         </div>
-
+ 
         <div class="field">
           <label for="notes">Notas para el cliente (opcional)</label>
           <textarea id="notes" rows="2" placeholder="Ej. Tiempo de entrega 3-5 días hábiles, se solicita 50% de anticipo…"></textarea>
         </div>
-
+ 
       </form>
-
+ 
       <!-- ===== TICKET / PREVIEW (elemento firma) ===== -->
       <div class="ticket-wrap">
         <div class="ticket-edge top"></div>
@@ -109,14 +110,14 @@
         </div>
         <div class="ticket-edge bottom"></div>
       </div>
-
+ 
       <div class="action-bar">
         <button type="button" id="saveQuoteBtn" class="btn-secondary">Guardar cotización</button>
         <button type="button" id="pdfBtn" class="btn-primary">Generar PDF</button>
       </div>
-
+ 
     </section>
-
+ 
     <!-- ===================== VISTA: COTIZACIONES ACTIVAS ===================== -->
     <section class="view" id="view-guardadas">
       <div class="section-label">
@@ -125,10 +126,19 @@
       <div id="savedList" class="saved-list"></div>
       <p class="empty-msg" id="emptyMsg" hidden>Aún no tienes cotizaciones guardadas.<br>Crea una desde la pestaña “Nueva”.</p>
     </section>
-
+ 
+    <!-- ===================== VISTA: PEDIDOS (sobre encargo) ===================== -->
+    <section class="view" id="view-pedidos">
+      <div class="section-label">
+        <span>Pedidos confirmados</span>
+      </div>
+      <div id="pedidosList" class="saved-list"></div>
+      <p class="empty-msg" id="emptyMsgPedidos" hidden>Aún no tienes pedidos confirmados.<br>Desliza la barra dentro de una cotización activa para pasarla a pedido.</p>
+    </section>
+ 
   </main>
 </div>
-
+ 
 <!-- ===================== MODAL: CONFIGURACIÓN ===================== -->
 <div class="modal-backdrop" id="settingsModal" hidden>
   <div class="modal">
@@ -163,7 +173,7 @@
     </div>
   </div>
 </div>
-
+ 
 <!-- ===================== MODAL: VISOR DE COTIZACIÓN GUARDADA ===================== -->
 <div class="modal-backdrop" id="viewerModal" hidden>
   <div class="modal modal-wide">
@@ -177,7 +187,7 @@
         <div id="viewerTicket" class="ticket"></div>
         <div class="ticket-edge bottom"></div>
       </div>
-
+ 
       <!-- Activa: barra para deslizar y confirmar pedido -->
       <div class="slide-confirm" id="slideConfirm">
         <div class="slide-track" id="slideTrack">
@@ -185,7 +195,7 @@
           <div class="slide-thumb" id="slideThumb">→</div>
         </div>
       </div>
-
+ 
       <!-- Pedido: resumen de datos ya confirmados -->
       <div class="order-info" id="orderInfo" hidden>
         <div class="order-info-head">
@@ -210,7 +220,7 @@
     </div>
   </div>
 </div>
-
+ 
 <!-- ===================== MODAL: CONFIRMAR PEDIDO ===================== -->
 <div class="modal-backdrop" id="orderModal" hidden>
   <div class="modal modal-wide">
@@ -220,7 +230,7 @@
     </div>
     <div class="modal-body">
       <div class="order-summary" id="orderSummary"></div>
-
+ 
       <div class="field-row">
         <div class="field">
           <label for="orderAnticipo">Anticipo recibido</label>
@@ -231,7 +241,7 @@
           <input type="date" id="orderFecha">
         </div>
       </div>
-
+ 
       <div class="section-label"><span>Datos del cliente</span></div>
       <div class="field">
         <label for="orderClientName">Nombre</label>
@@ -245,16 +255,22 @@
         <label for="orderClientAddress">Dirección de entrega</label>
         <textarea id="orderClientAddress" rows="2" placeholder="Calle, número, colonia, referencias…"></textarea>
       </div>
+ 
+      <div class="slide-confirm" id="orderSlideConfirm">
+        <div class="slide-track" id="orderSlideTrack">
+          <span class="slide-label">Desliza para confirmar y guardar pedido</span>
+          <div class="slide-thumb" id="orderSlideThumb">→</div>
+        </div>
+      </div>
     </div>
-    <div class="modal-foot modal-foot-split">
+    <div class="modal-foot">
       <button class="btn-secondary" id="cancelOrderBtn">Cancelar</button>
-      <button class="btn-primary" id="saveOrderBtn">Guardar pedido</button>
     </div>
   </div>
 </div>
-
+ 
 <div class="toast" id="toast"></div>
-
+ 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="js/app.js"></script>
