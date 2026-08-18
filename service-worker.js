@@ -1,7 +1,12 @@
-/* Service worker — cachea el app shell para que abra rápido y funcione
-   sin conexión. Los datos (cotizaciones) viven en localStorage, no aquí. */
 
-const CACHE_NAME = "gdl-cotizador-v1";
+/* Service worker — cachea el app shell para que funcione sin conexión.
+   Estrategia: RED PRIMERO para los archivos propios (index.html, css, js),
+   así siempre se sirve la versión más nueva cuando hay internet, y solo se
+   usa la copia guardada como respaldo si no hay señal. Esto evita que se
+   mezclen versiones viejas y nuevas de los archivos entre sí.
+   Los datos (cotizaciones) viven en localStorage, no aquí. */
+ 
+const CACHE_NAME = "gdl-cotizador-v2";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -12,14 +17,14 @@ const APP_SHELL = [
   "./icons/icon-512.png",
   "./icons/apple-touch-icon.png",
 ];
-
+ 
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)).catch(() => {})
   );
   self.skipWaiting();
 });
-
+ 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
@@ -28,34 +33,33 @@ self.addEventListener("activate", (event) => {
   );
   self.clients.claim();
 });
-
+ 
 self.addEventListener("fetch", (event) => {
   const req = event.request;
   if (req.method !== "GET") return;
-
-  // Recursos externos (CDN de html2canvas / jsPDF, Google Fonts): red primero,
-  // sin bloquear la app si no hay conexión.
+ 
   const url = new URL(req.url);
+ 
+  // Recursos externos (CDN de html2canvas / jsPDF, Google Fonts): red primero,
+  // con la caché solo como respaldo si no hay conexión.
   if (url.origin !== self.location.origin) {
-    event.respondWith(
-      fetch(req).catch(() => caches.match(req))
-    );
+    event.respondWith(fetch(req).catch(() => caches.match(req)));
     return;
   }
-
-  // App shell propio: caché primero, con actualización en segundo plano.
+ 
+  // App shell propio (index.html, css, js, manifest, iconos): también red
+  // primero. Así nunca se queda pegado sirviendo una mezcla de versiones
+  // viejas y nuevas cuando actualizamos la app.
   event.respondWith(
-    caches.match(req).then((cached) => {
-      const fetchPromise = fetch(req)
-        .then((res) => {
-          if (res && res.ok) {
-            const resClone = res.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(req, resClone));
-          }
-          return res;
-        })
-        .catch(() => cached);
-      return cached || fetchPromise;
-    })
+    fetch(req)
+      .then((res) => {
+        if (res && res.ok) {
+          const resClone = res.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(req, resClone));
+        }
+        return res;
+      })
+      .catch(() => caches.match(req))
   );
 });
+ 
