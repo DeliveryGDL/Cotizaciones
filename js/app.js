@@ -9,6 +9,7 @@
   /* ---------------- Almacenamiento ---------------- */
   const LS_SETTINGS = "gdl_settings";
   const LS_QUOTES = "gdl_quotes";
+  const LS_LOTES = "gdl_lotes";
  
   const defaultSettings = {
     name: "DELIVERY GDL",
@@ -16,6 +17,7 @@
     zone: "Guadalajara y zona metropolitana",
     footer: "Gracias por tu preferencia",
     nextFolio: 1,
+    nextLoteFolio: 1,
   };
  
   function loadSettings() {
@@ -40,9 +42,21 @@
   function saveQuotes(list) {
     localStorage.setItem(LS_QUOTES, JSON.stringify(list));
   }
+  function loadLotes() {
+    try {
+      const raw = localStorage.getItem(LS_LOTES);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      return [];
+    }
+  }
+  function saveLotes(list) {
+    localStorage.setItem(LS_LOTES, JSON.stringify(list));
+  }
  
   let settings = loadSettings();
   let quotes = loadQuotes();
+  let lotes = loadLotes();
  
   /* ---------------- Tabs (se registra primero: si algo más abajo llega a
      fallar, la navegación entre pestañas sigue funcionando) ---------------- */
@@ -74,6 +88,35 @@
   }
   function folioStr(n) {
     return "GDL-" + String(n).padStart(4, "0");
+  }
+  function loteFolioStr(n) {
+    return "LOTE-" + String(n).padStart(2, "0");
+  }
+ 
+  /* ---------------- Etapas de pedido / lote (rastreo) ---------------- */
+  const PEDIDO_STAGES = [
+    { key: "preparacion", label: "En preparación" },
+    { key: "comprado", label: "Comprado" },
+    { key: "en_camino", label: "En camino" },
+    { key: "en_mexico", label: "Llegó a México" },
+    { key: "listo_entrega", label: "Listo para entrega" },
+  ];
+  function stageLabel(key) {
+    const s = PEDIDO_STAGES.find((s) => s.key === key);
+    return s ? s.label : "En preparación";
+  }
+ 
+  /* ---------------- Pastilla de % cobrado ---------------- */
+  function paymentPct(cobrado, esperado) {
+    if (!esperado || esperado <= 0) return 0;
+    return Math.min(100, (cobrado / esperado) * 100);
+  }
+  function pillClass(pct) {
+    if (pct >= 80) return "pill-green";
+    if (pct >= 50) return "pill-yellow";
+    if (pct >= 30) return "pill-red";
+    if (pct >= 10) return "pill-purple";
+    return "pill-gray";
   }
   function todayISO() {
     const d = new Date();
@@ -306,6 +349,16 @@
     saveQuotes(quotes);
     saveSettings(settings);
   }
+  function renumberLoteFolios() {
+    const sorted = [...lotes].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    sorted.forEach((l, idx) => {
+      l.folio = idx + 1;
+      l.folioLabel = loteFolioStr(l.folio);
+    });
+    settings.nextLoteFolio = lotes.length + 1;
+    saveLotes(lotes);
+    saveSettings(settings);
+  }
  
   /* ---------------- Modo edición ---------------- */
   const editBanner = document.getElementById("editBanner");
@@ -420,25 +473,81 @@
   const pedidosListEl = document.getElementById("pedidosList");
   const emptyMsgPedidosEl = document.getElementById("emptyMsgPedidos");
   const pedidosCountEl = document.getElementById("pedidosCount");
+  const lotesListEl = document.getElementById("lotesList");
+  const emptyMsgLotesEl = document.getElementById("emptyMsgLotes");
+  const lotesCountEl = document.getElementById("lotesCount");
  
   function savedCardEl(q) {
     const { total } = computeTotals(q.items, q.discount);
-    const extra = q.status === "pedido" && q.pedido
-      ? ` · Entrega ${q.pedido.fechaEstimada ? formatDate(q.pedido.fechaEstimada) : "—"}`
-      : "";
+    const card = document.createElement("div");
+    card.className = "saved-card";
+ 
+    if (q.status === "pedido") {
+      const anticipo = (q.pedido && q.pedido.anticipo) || 0;
+      const pct = paymentPct(anticipo, total);
+      const lote = q.loteId ? lotes.find((l) => l.id === q.loteId) : null;
+      const extraBits = [];
+      if (q.pedido && q.pedido.fechaEstimada) extraBits.push(`Entrega ${formatDate(q.pedido.fechaEstimada)}`);
+      if (lote) extraBits.push(lote.folioLabel);
+      const extra = extraBits.length ? ` · ${extraBits.join(" · ")}` : "";
+      card.innerHTML = `
+        <div class="saved-main">
+          <strong>${escapeHtml(q.client)}</strong>
+          <span class="saved-meta">${q.folioLabel} · ${formatDate(q.date)}${extra}</span>
+        </div>
+        <div class="saved-amount">
+          <div class="amt">${money(total)}</div>
+          <div class="badge-row">
+            <span class="status-badge stage-${q.pedidoStatus || "preparacion"}">${stageLabel(q.pedidoStatus)}</span>
+            <span class="pay-pill ${pillClass(pct)}">${Math.round(pct)}%</span>
+          </div>
+        </div>
+      `;
+    } else {
+      card.innerHTML = `
+        <div class="saved-main">
+          <strong>${escapeHtml(q.client)}</strong>
+          <span class="saved-meta">${q.folioLabel} · ${formatDate(q.date)}</span>
+        </div>
+        <div class="saved-amount">
+          <div class="amt">${money(total)}</div>
+          <span class="status-badge activa">Activa</span>
+        </div>
+      `;
+    }
+    card.addEventListener("click", () => openViewer(q.id));
+    return card;
+  }
+ 
+  function loteFinancials(lote) {
+    const members = quotes.filter((q) => q.loteId === lote.id);
+    const esperado = members.reduce((s, q) => s + computeTotals(q.items, q.discount).total, 0);
+    const cobrado = members.reduce((s, q) => s + ((q.pedido && q.pedido.anticipo) || 0), 0);
+    const costoTotal = (lote.costoMercancia || 0) + (lote.costoEnvio || 0);
+    const ganancia = esperado - costoTotal;
+    const pendiente = Math.max(esperado - cobrado, 0);
+    const pct = paymentPct(cobrado, esperado);
+    return { members, esperado, cobrado, costoTotal, ganancia, pendiente, pct };
+  }
+ 
+  function loteCardEl(l) {
+    const f = loteFinancials(l);
     const card = document.createElement("div");
     card.className = "saved-card";
     card.innerHTML = `
       <div class="saved-main">
-        <strong>${escapeHtml(q.client)}</strong>
-        <span class="saved-meta">${q.folioLabel} · ${formatDate(q.date)}${extra}</span>
+        <strong>${escapeHtml(l.folioLabel)}${l.label ? " · " + escapeHtml(l.label) : ""}</strong>
+        <span class="saved-meta">${f.members.length} pedido${f.members.length === 1 ? "" : "s"} · costo ${money(f.costoTotal)} · ganancia ${money(f.ganancia)}</span>
       </div>
       <div class="saved-amount">
-        <div class="amt">${money(total)}</div>
-        <span class="status-badge ${q.status}">${q.status === "pedido" ? "Pedido" : "Activa"}</span>
+        <div class="amt">${money(f.esperado)}</div>
+        <div class="badge-row">
+          <span class="status-badge stage-${l.status}">${stageLabel(l.status)}</span>
+          <span class="pay-pill ${pillClass(f.pct)}">${Math.round(f.pct)}%</span>
+        </div>
       </div>
     `;
-    card.addEventListener("click", () => openViewer(q.id));
+    card.addEventListener("click", () => openLoteModal(l.id));
     return card;
   }
  
@@ -455,6 +564,11 @@
     pedidos.forEach((q) => pedidosListEl.appendChild(savedCardEl(q)));
     pedidosCountEl.textContent = pedidos.length;
     emptyMsgPedidosEl.hidden = pedidos.length > 0;
+ 
+    lotesListEl.innerHTML = "";
+    lotes.forEach((l) => lotesListEl.appendChild(loteCardEl(l)));
+    lotesCountEl.textContent = lotes.length;
+    emptyMsgLotesEl.hidden = lotes.length > 0;
   }
  
   /* ---------------- Visor / modal de cotización guardada ---------------- */
@@ -477,10 +591,14 @@
       orderInfo.hidden = false;
       const { total } = computeTotals(q.items, q.discount);
       const anticipo = (q.pedido && q.pedido.anticipo) || 0;
+      const lote = q.loteId ? lotes.find((l) => l.id === q.loteId) : null;
+      document.getElementById("oiStageBadge").textContent = stageLabel(q.pedidoStatus);
+      document.getElementById("oiStageBadge").className = `status-badge stage-${q.pedidoStatus || "preparacion"}`;
       document.getElementById("oiAnticipo").textContent = money(anticipo);
       document.getElementById("oiSaldo").textContent = money(Math.max(total - anticipo, 0));
       document.getElementById("oiFecha").textContent = q.pedido && q.pedido.fechaEstimada ? formatDate(q.pedido.fechaEstimada) : "—";
       document.getElementById("oiPhone").textContent = (q.pedido && q.pedido.clientPhone) || "—";
+      document.getElementById("oiLote").textContent = lote ? lote.folioLabel : "Sin lote asignar";
       document.getElementById("oiAddress").textContent = (q.pedido && q.pedido.clientAddress)
         ? `📍 ${q.pedido.clientAddress}` : "";
     } else {
@@ -626,6 +744,8 @@
     }
     q.client = clientName;
     q.status = "pedido";
+    if (!q.pedidoStatus) q.pedidoStatus = "preparacion";
+    if (q.loteId === undefined) q.loteId = null;
     q.pedido = {
       anticipo: parseFloat(document.getElementById("orderAnticipo").value) || 0,
       fechaEstimada: document.getElementById("orderFecha").value || "",
@@ -645,6 +765,165 @@
     if (pedidosTab) pedidosTab.click();
     return true;
   }
+ 
+  /* ---------------- Lotes (envíos / rastreo general) ---------------- */
+  const loteModal = document.getElementById("loteModal");
+  let editingLoteId = null;
+ 
+  function selectedPedidoIds() {
+    return Array.from(document.querySelectorAll("#lotePedidosPicker .picker-check:checked")).map((i) => i.dataset.qid);
+  }
+ 
+  function renderLotePicker(currentLoteId) {
+    const pickerEl = document.getElementById("lotePedidosPicker");
+    const pedidos = quotes.filter((q) => q.status === "pedido");
+    pickerEl.innerHTML = "";
+    if (pedidos.length === 0) {
+      pickerEl.innerHTML = `<p class="empty-msg" style="margin:8px 0;">Aún no tienes pedidos confirmados para asignar.</p>`;
+      return;
+    }
+    pedidos.forEach((q) => {
+      const otherLote = q.loteId && q.loteId !== currentLoteId ? lotes.find((l) => l.id === q.loteId) : null;
+      const total = computeTotals(q.items, q.discount).total;
+      const row = document.createElement("label");
+      row.className = "picker-row";
+      row.innerHTML = `
+        <input type="checkbox" class="picker-check" data-qid="${q.id}" ${q.loteId === currentLoteId ? "checked" : ""}>
+        <span class="picker-info">
+          <strong>${escapeHtml(q.client)}</strong>
+          <small>${q.folioLabel} · ${money(total)}${otherLote ? ` · ya en ${escapeHtml(otherLote.folioLabel)}` : ""}</small>
+        </span>
+      `;
+      pickerEl.appendChild(row);
+    });
+  }
+ 
+  function currentSelectionFinancials() {
+    const ids = selectedPedidoIds();
+    const members = quotes.filter((q) => ids.includes(q.id));
+    const esperado = members.reduce((s, q) => s + computeTotals(q.items, q.discount).total, 0);
+    const cobrado = members.reduce((s, q) => s + ((q.pedido && q.pedido.anticipo) || 0), 0);
+    const costoMercancia = parseFloat(document.getElementById("loteCostoMercancia").value) || 0;
+    const costoEnvio = parseFloat(document.getElementById("loteCostoEnvio").value) || 0;
+    const costoTotal = costoMercancia + costoEnvio;
+    const ganancia = esperado - costoTotal;
+    const pendiente = Math.max(esperado - cobrado, 0);
+    const pct = paymentPct(cobrado, esperado);
+    return { members, esperado, cobrado, costoTotal, ganancia, pendiente, pct };
+  }
+ 
+  function refreshLoteSummary() {
+    const f = currentSelectionFinancials();
+    document.getElementById("loteSummary").innerHTML = `
+      <div class="os-row"><span>${f.members.length} pedido${f.members.length === 1 ? "" : "s"}</span><span>Costo total ${money(f.costoTotal)}</span></div>
+      <div class="os-row"><span>Ingreso esperado</span><span>${money(f.esperado)}</span></div>
+      <div class="os-row"><span>Ganancia estimada</span><span>${money(f.ganancia)}</span></div>
+      <div class="os-row"><span>Cobrado (anticipos)</span><span>${money(f.cobrado)}</span></div>
+      <div class="os-row total"><span>Pendiente por cobrar</span><span>${money(f.pendiente)}</span></div>
+      <div class="badge-row" style="justify-content:flex-start; margin-top:10px;">
+        <span class="pay-pill ${pillClass(f.pct)}">${Math.round(f.pct)}% cobrado</span>
+      </div>
+    `;
+  }
+ 
+  document.getElementById("loteCostoMercancia").addEventListener("input", refreshLoteSummary);
+  document.getElementById("loteCostoEnvio").addEventListener("input", refreshLoteSummary);
+  document.getElementById("lotePedidosPicker").addEventListener("change", (e) => {
+    if (e.target.classList.contains("picker-check")) refreshLoteSummary();
+  });
+ 
+  function openLoteModal(id) {
+    editingLoteId = id || null;
+    const l = id ? lotes.find((x) => x.id === id) : null;
+ 
+    document.getElementById("loteModalTitle").textContent = l
+      ? `${l.folioLabel}${l.label ? " · " + l.label : ""}`
+      : "Nuevo lote";
+    document.getElementById("loteLabel").value = l ? (l.label || "") : "";
+    document.getElementById("loteStatus").value = l ? l.status : "preparacion";
+    document.getElementById("loteCostoMercancia").value = l && l.costoMercancia ? l.costoMercancia : "";
+    document.getElementById("loteCostoEnvio").value = l && l.costoEnvio ? l.costoEnvio : "";
+    document.getElementById("deleteLoteBtn").hidden = !l;
+ 
+    renderLotePicker(l ? l.id : null);
+    refreshLoteSummary();
+    loteModal.hidden = false;
+  }
+ 
+  document.getElementById("addLoteBtn").addEventListener("click", () => openLoteModal(null));
+  document.getElementById("closeLoteModal").addEventListener("click", () => (loteModal.hidden = true));
+  loteModal.addEventListener("click", (e) => { if (e.target === loteModal) loteModal.hidden = true; });
+ 
+  document.getElementById("saveLoteBtn").addEventListener("click", () => {
+    const selectedIds = selectedPedidoIds();
+    const label = document.getElementById("loteLabel").value.trim();
+    const status = document.getElementById("loteStatus").value;
+    const costoMercancia = parseFloat(document.getElementById("loteCostoMercancia").value) || 0;
+    const costoEnvio = parseFloat(document.getElementById("loteCostoEnvio").value) || 0;
+ 
+    let lote;
+    if (editingLoteId) {
+      lote = lotes.find((x) => x.id === editingLoteId);
+      if (!lote) return;
+      lote.label = label;
+      lote.status = status;
+      lote.costoMercancia = costoMercancia;
+      lote.costoEnvio = costoEnvio;
+    } else {
+      lote = {
+        id: uid(),
+        folio: settings.nextLoteFolio,
+        folioLabel: loteFolioStr(settings.nextLoteFolio),
+        label,
+        status,
+        costoMercancia,
+        costoEnvio,
+        createdAt: new Date().toISOString(),
+        statusHistory: [],
+      };
+      lotes.unshift(lote);
+      settings.nextLoteFolio += 1;
+      saveSettings(settings);
+    }
+ 
+    // Registro simple de cambios de estatus, para rastreo general del lote.
+    if (!lote.statusHistory) lote.statusHistory = [];
+    const lastEntry = lote.statusHistory[lote.statusHistory.length - 1];
+    if (!lastEntry || lastEntry.status !== status) {
+      lote.statusHistory.push({ status, at: new Date().toISOString() });
+    }
+ 
+    // Membresía: quitar el lote de quien ya no esté marcado, asignar a quien sí,
+    // y sincronizar el estatus del lote a cada pedido asignado (cascada automática).
+    quotes.forEach((q) => {
+      if (q.loteId === lote.id && !selectedIds.includes(q.id)) q.loteId = null;
+    });
+    selectedIds.forEach((qid) => {
+      const q = quotes.find((x) => x.id === qid);
+      if (!q) return;
+      q.loteId = lote.id;
+      q.pedidoStatus = lote.status;
+    });
+ 
+    saveQuotes(quotes);
+    saveLotes(lotes);
+    toast(editingLoteId ? `${lote.folioLabel} actualizado` : `${lote.folioLabel} creado`);
+    loteModal.hidden = true;
+    renderLists();
+    if (viewerQuoteId) openViewer(viewerQuoteId);
+  });
+ 
+  document.getElementById("deleteLoteBtn").addEventListener("click", () => {
+    if (!editingLoteId) return;
+    if (!confirm("¿Eliminar este lote? Los pedidos asignados se quedan sin lote, pero conservan su estatus actual.")) return;
+    quotes.forEach((q) => { if (q.loteId === editingLoteId) q.loteId = null; });
+    lotes = lotes.filter((l) => l.id !== editingLoteId);
+    saveQuotes(quotes);
+    renumberLoteFolios();
+    loteModal.hidden = true;
+    toast("Lote eliminado — folios reacomodados");
+    renderLists();
+  });
  
   /* ---------------- Configuración (modal) ---------------- */
   const settingsModal = document.getElementById("settingsModal");
