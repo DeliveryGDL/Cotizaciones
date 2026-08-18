@@ -41,6 +41,7 @@
     <button class="tab active" data-tab="nueva" role="tab" aria-selected="true">Nueva</button>
     <button class="tab" data-tab="guardadas" role="tab" aria-selected="false">Activas <span class="tab-count" id="tabCount">0</span></button>
     <button class="tab" data-tab="pedidos" role="tab" aria-selected="false">Pedidos <span class="tab-count" id="pedidosCount">0</span></button>
+    <button class="tab" data-tab="lotes" role="tab" aria-selected="false">Lotes <span class="tab-count" id="lotesCount">0</span></button>
   </nav>
  
   <main class="views">
@@ -136,6 +137,18 @@
       <p class="empty-msg" id="emptyMsgPedidos" hidden>Aún no tienes pedidos confirmados.<br>Desliza la barra dentro de una cotización activa para pasarla a pedido.</p>
     </section>
  
+    <!-- ===================== VISTA: LOTES (envíos / rastreo general) ===================== -->
+    <section class="view" id="view-lotes">
+      <div class="section-label">
+        <span>Lotes</span>
+      </div>
+      <button type="button" id="addLoteBtn" class="btn-add" style="margin-bottom:12px;">
+        <span class="plus">+</span> Nuevo lote
+      </button>
+      <div id="lotesList" class="saved-list"></div>
+      <p class="empty-msg" id="emptyMsgLotes" hidden>Aún no tienes lotes.<br>Crea uno y asígnale los pedidos que van en ese envío.</p>
+    </section>
+ 
   </main>
 </div>
  
@@ -199,7 +212,7 @@
       <!-- Pedido: resumen de datos ya confirmados -->
       <div class="order-info" id="orderInfo" hidden>
         <div class="order-info-head">
-          <span class="status-badge pedido">Pedido</span>
+          <span class="status-badge pedido" id="oiStageBadge">Pedido</span>
           <button type="button" class="link-btn" id="editOrderBtn">Editar detalles</button>
         </div>
         <div class="order-info-grid">
@@ -207,6 +220,7 @@
           <div><span>Saldo</span><strong id="oiSaldo">—</strong></div>
           <div><span>Entrega estimada</span><strong id="oiFecha">—</strong></div>
           <div><span>Teléfono</span><strong id="oiPhone">—</strong></div>
+          <div><span>Lote</span><strong id="oiLote">—</strong></div>
         </div>
         <div class="order-info-address" id="oiAddress"></div>
       </div>
@@ -265,6 +279,57 @@
     </div>
     <div class="modal-foot">
       <button class="btn-secondary" id="cancelOrderBtn">Cancelar</button>
+    </div>
+  </div>
+</div>
+ 
+<!-- ===================== MODAL: LOTE (crear / editar) ===================== -->
+<div class="modal-backdrop" id="loteModal" hidden>
+  <div class="modal modal-wide">
+    <div class="modal-head">
+      <h2 id="loteModalTitle">Nuevo lote</h2>
+      <button class="icon-btn" id="closeLoteModal" aria-label="Cerrar">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label for="loteLabel">Referencia (opcional)</label>
+        <input type="text" id="loteLabel" placeholder="Ej. Envío aéreo agosto">
+      </div>
+ 
+      <div class="field">
+        <label for="loteStatus">Estatus del lote</label>
+        <select id="loteStatus">
+          <option value="preparacion">En preparación</option>
+          <option value="comprado">Comprado</option>
+          <option value="en_camino">En camino</option>
+          <option value="en_mexico">Llegó a México</option>
+          <option value="listo_entrega">Listo para entrega</option>
+        </select>
+      </div>
+      <p class="field-note">Al guardar, este estatus se aplica automáticamente a todos los pedidos de este lote.</p>
+ 
+      <div class="field-row">
+        <div class="field">
+          <label for="loteCostoMercancia">Costo de mercancía</label>
+          <input type="number" id="loteCostoMercancia" min="0" step="0.01" placeholder="0.00">
+        </div>
+        <div class="field">
+          <label for="loteCostoEnvio">Costo de envío</label>
+          <input type="number" id="loteCostoEnvio" min="0" step="0.01" placeholder="0.00">
+        </div>
+      </div>
+ 
+      <div class="section-label"><span>Ganancia del lote</span></div>
+      <div class="order-summary" id="loteSummary"></div>
+ 
+      <div class="section-label"><span>Pedidos en este lote</span></div>
+      <div id="lotePedidosPicker" class="picker-list"></div>
+    </div>
+    <div class="modal-foot modal-foot-split">
+      <button class="btn-danger" id="deleteLoteBtn" hidden>Eliminar lote</button>
+      <div class="modal-foot-right">
+        <button class="btn-primary" id="saveLoteBtn">Guardar lote</button>
+      </div>
     </div>
   </div>
 </div>
