@@ -44,6 +44,19 @@
   let settings = loadSettings();
   let quotes = loadQuotes();
  
+  /* ---------------- Tabs (se registra primero: si algo más abajo llega a
+     fallar, la navegación entre pestañas sigue funcionando) ---------------- */
+  document.querySelectorAll(".tab").forEach((tab) => {
+    tab.addEventListener("click", () => {
+      document.querySelectorAll(".tab").forEach((t) => { t.classList.remove("active"); t.setAttribute("aria-selected", "false"); });
+      document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
+      tab.classList.add("active");
+      tab.setAttribute("aria-selected", "true");
+      const view = document.getElementById(`view-${tab.dataset.tab}`);
+      if (view) view.classList.add("active");
+    });
+  });
+ 
   /* ---------------- Estado del formulario actual ---------------- */
   let items = []; // {id, name, qty, price, img}
   let editingId = null; // id de la cotización que se está editando (null = cotización nueva)
@@ -696,17 +709,6 @@
     }
     const client = document.getElementById("clientName").value.trim() || "cliente";
     generatePDF(ticketPreviewEl, `${folioStr(settings.nextFolio)}_${client}`);
-  });
- 
-  /* ---------------- Tabs ---------------- */
-  document.querySelectorAll(".tab").forEach((tab) => {
-    tab.addEventListener("click", () => {
-      document.querySelectorAll(".tab").forEach((t) => { t.classList.remove("active"); t.setAttribute("aria-selected", "false"); });
-      document.querySelectorAll(".view").forEach((v) => v.classList.remove("active"));
-      tab.classList.add("active");
-      tab.setAttribute("aria-selected", "true");
-      document.getElementById(`view-${tab.dataset.tab}`).classList.add("active");
-    });
   });
  
   /* ---------------- Inicialización ---------------- */
