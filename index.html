@@ -38,7 +38,8 @@
  
   <!-- Tabs -->
   <nav class="tabs" role="tablist">
-    <button class="tab active" data-tab="nueva" role="tab" aria-selected="true">Nueva</button>
+    <button class="tab active" data-tab="resumen" role="tab" aria-selected="true">Resumen</button>
+    <button class="tab" data-tab="nueva" role="tab" aria-selected="false">Nueva</button>
     <button class="tab" data-tab="guardadas" role="tab" aria-selected="false">Activas <span class="tab-count" id="tabCount">0</span></button>
     <button class="tab" data-tab="pedidos" role="tab" aria-selected="false">Pedidos <span class="tab-count" id="pedidosCount">0</span></button>
     <button class="tab" data-tab="lotes" role="tab" aria-selected="false">Lotes <span class="tab-count" id="lotesCount">0</span></button>
@@ -46,8 +47,21 @@
  
   <main class="views">
  
+    <!-- ===================== VISTA: RESUMEN (dashboard) ===================== -->
+    <section class="view active" id="view-resumen">
+      <div class="section-label"><span>Resumen general</span></div>
+      <div class="stat-grid" id="statGrid"></div>
+ 
+      <div class="section-label"><span>Pedidos por etapa</span></div>
+      <div id="stageBreakdown" class="stage-breakdown"></div>
+ 
+      <div class="section-label"><span>Próximas entregas</span></div>
+      <div id="upcomingList" class="saved-list"></div>
+      <p class="empty-msg" id="emptyMsgUpcoming" hidden>No hay entregas con fecha programada.</p>
+    </section>
+ 
     <!-- ===================== VISTA: NUEVA COTIZACIÓN ===================== -->
-    <section class="view active" id="view-nueva">
+    <section class="view" id="view-nueva">
  
       <div class="edit-banner" id="editBanner" hidden>
         <span id="editBannerText">Editando cotización</span>
@@ -65,6 +79,11 @@
             <label for="quoteDate">Fecha</label>
             <input type="date" id="quoteDate" required>
           </div>
+        </div>
+ 
+        <div class="field">
+          <label for="clientPhone">Teléfono del cliente (opcional)</label>
+          <input type="tel" id="clientPhone" placeholder="33 1234 5678">
         </div>
  
         <div class="section-label">
@@ -201,6 +220,10 @@
         <div class="ticket-edge bottom"></div>
       </div>
  
+      <button type="button" id="whatsappBtn" class="btn-whatsapp">
+        <span class="wa-icon">💬</span> Enviar por WhatsApp
+      </button>
+ 
       <!-- Activa: barra para deslizar y confirmar pedido -->
       <div class="slide-confirm" id="slideConfirm">
         <div class="slide-track" id="slideTrack">
@@ -316,6 +339,9 @@
         </select>
       </div>
       <p class="field-note">Al guardar, este estatus se aplica automáticamente a todos los pedidos de este lote.</p>
+ 
+      <div class="section-label" id="loteTimelineLabel" hidden><span>Historial de estatus</span></div>
+      <div id="loteTimeline" class="lote-timeline"></div>
  
       <div class="field-row">
         <div class="field">
