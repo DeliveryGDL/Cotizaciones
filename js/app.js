@@ -18,6 +18,14 @@
     footer: "Gracias por tu preferencia",
     nextFolio: 1,
     nextLoteFolio: 1,
+    // Costeo de importación (interno, nunca se muestra al cliente).
+    // Quedan fijos hasta que el usuario los edite en Configuración.
+    rmbToUsd: 6.8,
+    dolarChina: 17.5,
+    comisionPct: 10,
+    envioInternoUsd: 3,
+    usdPorKilo: 19.5,
+    deltaDolarEnvio: 1.25,
   };
  
   function loadSettings() {
@@ -204,8 +212,26 @@
             <input type="number" class="item-price price-input" min="0" step="0.01" value="${item.price}">
           </div>
         </div>
+        <div class="item-cost-row">
+          <div class="mini-field">
+            <label>Peso (g)</label>
+            <input type="number" class="item-peso" min="0" step="1" value="${item.pesoGramos || ""}" placeholder="0">
+          </div>
+          <div class="mini-field">
+            <label>Costo (RMB)</label>
+            <input type="number" class="item-rmb" min="0" step="0.01" value="${item.costoRMB || ""}" placeholder="0">
+          </div>
+          <span class="item-cost-readout" data-role="costReadout">—</span>
+        </div>
       `;
       itemsListEl.appendChild(card);
+ 
+      const costReadout = card.querySelector('[data-role="costReadout"]');
+      function refreshCostReadout() {
+        const c = computeItemCost(item, costConfig());
+        costReadout.textContent = c ? `≈ ${money(c.totalMXN)} c/u` : "—";
+      }
+      refreshCostReadout();
  
       card.querySelector(".item-file").addEventListener("change", async (e) => {
         const file = e.target.files[0];
@@ -224,10 +250,21 @@
       });
       card.querySelector(".item-qty").addEventListener("input", (e) => {
         item.qty = parseFloat(e.target.value) || 0;
+        refreshCostReadout();
         renderTicket();
       });
       card.querySelector(".item-price").addEventListener("input", (e) => {
         item.price = parseFloat(e.target.value) || 0;
+        renderTicket();
+      });
+      card.querySelector(".item-peso").addEventListener("input", (e) => {
+        item.pesoGramos = e.target.value;
+        refreshCostReadout();
+        renderTicket();
+      });
+      card.querySelector(".item-rmb").addEventListener("input", (e) => {
+        item.costoRMB = e.target.value;
+        refreshCostReadout();
         renderTicket();
       });
       card.querySelector(".item-remove").addEventListener("click", () => {
@@ -290,6 +327,75 @@
   }
   function abonosTotal(q) {
     return abonosOf(q).reduce((sum, a) => sum + (a.amount || 0), 0);
+  }
+ 
+  /* ---------------- Costeo de importación (interno) ----------------
+     Flujo real: RMB -> USD (tipo de cambio China) -> + comisión del agente
+     de compras -> + envío interno dentro de China -> convertir a MXN con el
+     "dólar en China" -> sumar envío internacional por peso, convertido con
+     un dólar ligeramente más caro. Todo esto es SOLO para uso interno del
+     negocio; nunca se muestra en el PDF ni al cliente. */
+  function costConfig() {
+    return {
+      rmbToUsd: settings.rmbToUsd,
+      dolarChina: settings.dolarChina,
+      comisionPct: settings.comisionPct,
+      envioInternoUsd: settings.envioInternoUsd,
+      usdPorKilo: settings.usdPorKilo,
+      deltaDolarEnvio: settings.deltaDolarEnvio,
+    };
+  }
+  function computeItemCost(item, cfg) {
+    const rmb = parseFloat(item.costoRMB) || 0;
+    const gramos = parseFloat(item.pesoGramos) || 0;
+    if (!rmb && !gramos) return null; // nada capturado todavía para esta prenda
+ 
+    const usdProducto = cfg.rmbToUsd > 0 ? rmb / cfg.rmbToUsd : 0;
+    const comisionUsd = usdProducto * ((cfg.comisionPct || 0) / 100);
+    const envioInternoUsd = cfg.envioInternoUsd || 0;
+    const subtotalChinaUsd = usdProducto + comisionUsd + envioInternoUsd;
+    const costoChinaMXN = subtotalChinaUsd * (cfg.dolarChina || 0);
+ 
+    const pesoKg = gramos / 1000;
+    const dolarEnvio = (cfg.dolarChina || 0) + (cfg.deltaDolarEnvio || 0);
+    const envioUsd = pesoKg * (cfg.usdPorKilo || 0);
+    const envioMXN = envioUsd * dolarEnvio;
+ 
+    return { usdProducto, comisionUsd, envioInternoUsd, costoChinaMXN, envioUsd, envioMXN, totalMXN: costoChinaMXN + envioMXN };
+  }
+  function quoteCostSummary(quoteItems) {
+    const cfg = costConfig();
+    let totalCosto = 0, withData = 0;
+    quoteItems.forEach((it) => {
+      const c = computeItemCost(it, cfg);
+      if (c) {
+        totalCosto += c.totalMXN * (it.qty || 1);
+        withData++;
+      }
+    });
+    return { totalCosto, withData, totalItems: quoteItems.length };
+  }
+  function renderCostSummaryInto(boxEl, bodyEl, quoteItems, discount) {
+    if (!boxEl || !bodyEl) return;
+    const { totalCosto, withData, totalItems } = quoteCostSummary(quoteItems);
+    if (withData === 0) {
+      boxEl.hidden = true;
+      return;
+    }
+    boxEl.hidden = false;
+    const { total } = computeTotals(quoteItems, discount);
+    const ganancia = total - totalCosto;
+    const margen = total > 0 ? (ganancia / total) * 100 : 0;
+    const incompleto = withData < totalItems
+      ? `<div class="cost-summary-warn">⚠️ ${totalItems - withData} de ${totalItems} producto${totalItems === 1 ? "" : "s"} sin peso/RMB capturado — este cálculo es parcial.</div>`
+      : "";
+    bodyEl.innerHTML = `
+      <div class="os-row"><span>Costo estimado (China + envío)</span><span>${money(totalCosto)}</span></div>
+      <div class="os-row"><span>Precio de venta</span><span>${money(total)}</span></div>
+      <div class="os-row total"><span>Ganancia estimada</span><span>${money(ganancia)}</span></div>
+      <div class="os-row muted"><span>Margen</span><span>${margen.toFixed(1)}%</span></div>
+      ${incompleto}
+    `;
   }
  
   function currentDiscount() {
@@ -363,8 +469,12 @@
   }
  
   const ticketPreviewEl = document.getElementById("ticketPreview");
+  const costSummaryBoxEl = document.getElementById("costSummaryBox");
+  const costSummaryBodyEl = document.getElementById("costSummaryBody");
   function renderTicket() {
-    ticketPreviewEl.innerHTML = ticketHTML(buildQuoteFromForm());
+    const quote = buildQuoteFromForm();
+    ticketPreviewEl.innerHTML = ticketHTML(quote);
+    renderCostSummaryInto(costSummaryBoxEl, costSummaryBodyEl, quote.items, quote.discount);
   }
  
   /* ---------------- Folios: mantener numeración continua ---------------- */
@@ -695,6 +805,11 @@
     viewerQuoteId = id;
     viewerTitle.textContent = `${q.folioLabel} · ${q.client}`;
     viewerTicket.innerHTML = ticketHTML(q);
+    renderCostSummaryInto(
+      document.getElementById("viewerCostSummaryBox"),
+      document.getElementById("viewerCostSummaryBody"),
+      q.items, q.discount
+    );
  
     if (q.status === "pedido") {
       slideConfirm.hidden = true;
@@ -1208,6 +1323,12 @@
     document.getElementById("cfgZone").value = settings.zone;
     document.getElementById("cfgFooter").value = settings.footer;
     document.getElementById("cfgFolio").value = settings.nextFolio;
+    document.getElementById("cfgRmbToUsd").value = settings.rmbToUsd;
+    document.getElementById("cfgDolarChina").value = settings.dolarChina;
+    document.getElementById("cfgComisionPct").value = settings.comisionPct;
+    document.getElementById("cfgEnvioInternoUsd").value = settings.envioInternoUsd;
+    document.getElementById("cfgUsdPorKilo").value = settings.usdPorKilo;
+    document.getElementById("cfgDeltaDolarEnvio").value = settings.deltaDolarEnvio;
     settingsModal.hidden = false;
   });
   document.getElementById("closeSettings").addEventListener("click", () => (settingsModal.hidden = true));
@@ -1219,6 +1340,12 @@
     settings.zone = document.getElementById("cfgZone").value.trim();
     settings.footer = document.getElementById("cfgFooter").value.trim() || defaultSettings.footer;
     settings.nextFolio = Math.max(1, parseInt(document.getElementById("cfgFolio").value) || 1);
+    settings.rmbToUsd = parseFloat(document.getElementById("cfgRmbToUsd").value) || defaultSettings.rmbToUsd;
+    settings.dolarChina = parseFloat(document.getElementById("cfgDolarChina").value) || defaultSettings.dolarChina;
+    settings.comisionPct = parseFloat(document.getElementById("cfgComisionPct").value) || 0;
+    settings.envioInternoUsd = parseFloat(document.getElementById("cfgEnvioInternoUsd").value) || 0;
+    settings.usdPorKilo = parseFloat(document.getElementById("cfgUsdPorKilo").value) || defaultSettings.usdPorKilo;
+    settings.deltaDolarEnvio = parseFloat(document.getElementById("cfgDeltaDolarEnvio").value) || 0;
     saveSettings(settings);
     document.getElementById("brandName").textContent = settings.name;
     settingsModal.hidden = true;
