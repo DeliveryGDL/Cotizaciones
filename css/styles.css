@@ -31,6 +31,18 @@
  
 *{ box-sizing: border-box; }
 [hidden]{ display: none !important; }
+ 
+/* Inputs numéricos: sin flechitas de incremento, se mantiene el teclado numérico */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button{
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"]{
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+ 
 html,body{ height:100%; }
 body{
   margin:0;
