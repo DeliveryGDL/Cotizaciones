@@ -396,8 +396,9 @@ input, select, textarea{ font-family: inherit; }
 .slide-label{
   position:absolute; left:0; right:0; text-align:center;
   font-size:13px; font-weight:700; color: var(--teal); letter-spacing:0.02em;
-  pointer-events:none;
+  pointer-events:none; transition: opacity .18s ease;
 }
+.slide-track.dragging .slide-label{ transition:none; }
 .slide-thumb{
   width:44px; height:44px; border-radius:50%;
   background: linear-gradient(135deg, var(--mango), var(--mango-deep));
@@ -422,6 +423,24 @@ input, select, textarea{ font-family: inherit; }
 .order-info-grid span{ font-size:10.5px; color: var(--muted); text-transform:uppercase; letter-spacing:0.04em; font-family: var(--font-mono); }
 .order-info-grid strong{ font-size:14px; font-family: var(--font-mono); }
 .order-info-address{ margin-top:10px; padding-top:10px; border-top:1px dashed var(--line); font-size:12.5px; color: var(--ink-soft); }
+ 
+.abonos-section{ margin-top:14px; padding-top:12px; border-top:1px dashed var(--line); }
+.abonos-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+.abonos-head span{ font-size:11.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color: var(--muted); }
+.abonos-list{ display:flex; flex-direction:column; gap:6px; }
+.abonos-empty{ font-size:12.5px; color: var(--muted); margin:0; }
+.abono-row{
+  display:grid; grid-template-columns: auto 1fr auto auto; align-items:center; gap:8px;
+  background: var(--paper-dim); border-radius:8px; padding:7px 10px; font-size:12.5px;
+}
+.abono-date{ font-family: var(--font-mono); color: var(--muted); font-size:11.5px; }
+.abono-note{ color: var(--ink-soft); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.abono-amt{ font-family: var(--font-mono); font-weight:700; color: var(--teal); }
+.abono-del{
+  border:none; background:transparent; color: var(--danger); font-size:15px; width:22px; height:22px;
+  border-radius:50%; line-height:1;
+}
+.abono-del:hover{ background: rgba(193,67,43,0.1); }
  
 /* ---------- Order summary (modal confirmar pedido) ---------- */
 .order-summary{
