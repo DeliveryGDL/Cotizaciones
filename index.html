@@ -131,6 +131,11 @@
         <div class="ticket-edge bottom"></div>
       </div>
  
+      <div class="cost-summary" id="costSummaryBox" hidden>
+        <div class="cost-summary-head">🔒 Costeo interno — no aparece en el PDF del cliente</div>
+        <div id="costSummaryBody"></div>
+      </div>
+ 
       <div class="action-bar">
         <button type="button" id="saveQuoteBtn" class="btn-secondary">Guardar cotización</button>
         <button type="button" id="pdfBtn" class="btn-primary">Generar PDF</button>
@@ -199,6 +204,40 @@
         <label for="cfgFolio">Siguiente folio</label>
         <input type="number" id="cfgFolio" min="1" step="1">
       </div>
+ 
+      <div class="section-label"><span>Costeo de importación (interno)</span></div>
+      <p class="field-note">Estos valores se quedan fijos hasta que tú los vuelvas a editar. Se usan para calcular el costo puesto en México de cada producto — nunca aparecen en el PDF del cliente.</p>
+ 
+      <div class="field-row">
+        <div class="field">
+          <label for="cfgRmbToUsd">RMB por dólar</label>
+          <input type="number" id="cfgRmbToUsd" min="0" step="0.01" placeholder="6.80">
+        </div>
+        <div class="field">
+          <label for="cfgDolarChina">Dólar en China ($ MXN)</label>
+          <input type="number" id="cfgDolarChina" min="0" step="0.01" placeholder="17.50">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="cfgComisionPct">Comisión agente (%)</label>
+          <input type="number" id="cfgComisionPct" min="0" step="0.1" placeholder="10">
+        </div>
+        <div class="field">
+          <label for="cfgEnvioInternoUsd">Envío interno China (USD)</label>
+          <input type="number" id="cfgEnvioInternoUsd" min="0" step="0.01" placeholder="3.00">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="cfgUsdPorKilo">Envío internacional (USD/kg)</label>
+          <input type="number" id="cfgUsdPorKilo" min="0" step="0.01" placeholder="19.50">
+        </div>
+        <div class="field">
+          <label for="cfgDeltaDolarEnvio">Dólar envío, extra ($ MXN)</label>
+          <input type="number" id="cfgDeltaDolarEnvio" min="0" step="0.01" placeholder="1.25">
+        </div>
+      </div>
     </div>
     <div class="modal-foot">
       <button class="btn-primary" id="saveSettingsBtn">Guardar</button>
@@ -218,6 +257,11 @@
         <div class="ticket-edge top"></div>
         <div id="viewerTicket" class="ticket"></div>
         <div class="ticket-edge bottom"></div>
+      </div>
+ 
+      <div class="cost-summary" id="viewerCostSummaryBox" hidden>
+        <div class="cost-summary-head">🔒 Costeo interno — no aparece en el PDF del cliente</div>
+        <div id="viewerCostSummaryBody"></div>
       </div>
  
       <button type="button" id="whatsappBtn" class="btn-whatsapp">
