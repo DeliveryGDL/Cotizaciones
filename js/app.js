@@ -127,6 +127,14 @@
     const [y, m, d] = iso.split("-");
     return `${d}/${m}/${y}`;
   }
+  function formatDateTime(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return "";
+    const datePart = `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+    const timePart = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    return `${datePart} · ${timePart}`;
+  }
   function escapeHtml(str) {
     return String(str || "").replace(/[&<>"']/g, (c) => ({
       "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
@@ -345,6 +353,7 @@
   function buildQuoteFromForm() {
     return {
       client: document.getElementById("clientName").value.trim(),
+      clientPhone: document.getElementById("clientPhone").value.trim(),
       date: document.getElementById("quoteDate").value || todayISO(),
       items: items,
       discount: currentDiscount(),
@@ -403,6 +412,7 @@
     editingId = id;
     items = q.items.map((it) => ({ ...it }));
     document.getElementById("clientName").value = q.client;
+    document.getElementById("clientPhone").value = q.clientPhone || "";
     document.getElementById("quoteDate").value = q.date;
     document.getElementById("notes").value = q.notes || "";
     discountEnabled.checked = !!(q.discount && q.discount.enabled);
@@ -442,6 +452,7 @@
       const q = quotes.find((x) => x.id === editingId);
       if (!q) { editingId = null; resetForm(); return; }
       q.client = client;
+      q.clientPhone = document.getElementById("clientPhone").value.trim();
       q.date = document.getElementById("quoteDate").value || todayISO();
       q.items = items;
       q.discount = currentDiscount();
@@ -475,6 +486,7 @@
   function resetForm() {
     items = [];
     document.getElementById("clientName").value = "";
+    document.getElementById("clientPhone").value = "";
     document.getElementById("quoteDate").value = todayISO();
     document.getElementById("notes").value = "";
     discountEnabled.checked = false;
@@ -589,6 +601,65 @@
     lotes.forEach((l) => lotesListEl.appendChild(loteCardEl(l)));
     lotesCountEl.textContent = lotes.length;
     emptyMsgLotesEl.hidden = lotes.length > 0;
+ 
+    renderDashboard(activas, pedidos);
+  }
+ 
+  /* ---------------- Dashboard (Resumen) ---------------- */
+  function renderDashboard(activas, pedidos) {
+    const porCobrar = pedidos.reduce((s, q) => s + Math.max(computeTotals(q.items, q.discount).total - abonosTotal(q), 0), 0);
+    const cobradoTotal = pedidos.reduce((s, q) => s + abonosTotal(q), 0);
+    const lotesActivos = lotes.filter((l) => l.status !== "listo_entrega").length;
+    const gananciaLotes = lotes.reduce((s, l) => s + loteFinancials(l).ganancia, 0);
+ 
+    const statGridEl = document.getElementById("statGrid");
+    statGridEl.innerHTML = `
+      <div class="stat-card accent">
+        <span class="stat-value">${activas.length}</span>
+        <span class="stat-label">Cotizaciones activas</span>
+      </div>
+      <div class="stat-card good">
+        <span class="stat-value">${pedidos.length}</span>
+        <span class="stat-label">Pedidos confirmados</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-value">${money(porCobrar)}</span>
+        <span class="stat-label">Por cobrar (pedidos)</span>
+      </div>
+      <div class="stat-card good">
+        <span class="stat-value">${money(cobradoTotal)}</span>
+        <span class="stat-label">Cobrado en abonos</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-value">${lotesActivos}</span>
+        <span class="stat-label">Lotes activos</span>
+      </div>
+      <div class="stat-card ${gananciaLotes >= 0 ? "good" : ""}">
+        <span class="stat-value">${money(gananciaLotes)}</span>
+        <span class="stat-label">Ganancia estimada (lotes)</span>
+      </div>
+    `;
+ 
+    const stageBreakdownEl = document.getElementById("stageBreakdown");
+    stageBreakdownEl.innerHTML = PEDIDO_STAGES.map((s) => {
+      const count = pedidos.filter((q) => (q.pedidoStatus || "preparacion") === s.key).length;
+      return `
+        <div class="stage-row">
+          <span class="status-badge stage-${s.key}">${s.label}</span>
+          <span class="stage-count">${count}</span>
+        </div>
+      `;
+    }).join("");
+ 
+    const upcomingListEl = document.getElementById("upcomingList");
+    const emptyMsgUpcomingEl = document.getElementById("emptyMsgUpcoming");
+    const upcoming = pedidos
+      .filter((q) => q.pedido && q.pedido.fechaEstimada)
+      .sort((a, b) => new Date(a.pedido.fechaEstimada) - new Date(b.pedido.fechaEstimada))
+      .slice(0, 5);
+    upcomingListEl.innerHTML = "";
+    upcoming.forEach((q) => upcomingListEl.appendChild(savedCardEl(q)));
+    emptyMsgUpcomingEl.hidden = upcoming.length > 0;
   }
  
   /* ---------------- Visor / modal de cotización guardada ---------------- */
@@ -675,6 +746,48 @@
     const q = quotes.find((x) => x.id === viewerQuoteId);
     if (!q) return;
     generatePDF(viewerTicket, `${q.folioLabel}_${q.client}`);
+  });
+ 
+  /* ---------------- Enviar por WhatsApp ----------------
+     WhatsApp no permite, desde una página web, abrir el chat de un contacto
+     específico CON un archivo ya adjunto al mismo tiempo — esa combinación
+     no está disponible para ningún sitio externo (solo para la propia app
+     de WhatsApp). Lo más cercano y confiable: se descarga el PDF y, aparte,
+     se abre directo el chat del cliente con el mensaje ya escrito — solo
+     falta adjuntar el PDF desde el 📎 y dar enviar. */
+  function resolveClientPhone(q) {
+    return (q.pedido && q.pedido.clientPhone) || q.clientPhone || "";
+  }
+  function normalizePhoneMX(raw) {
+    const digits = (raw || "").replace(/\D/g, "");
+    if (!digits) return "";
+    if (digits.length === 10) return "52" + digits; // celular MX sin lada país
+    return digits; // ya trae lada país o formato distinto: se usa tal cual
+  }
+ 
+  document.getElementById("whatsappBtn").addEventListener("click", async () => {
+    const q = quotes.find((x) => x.id === viewerQuoteId);
+    if (!q) return;
+    const rawPhone = resolveClientPhone(q);
+    if (!rawPhone) {
+      toast(q.status === "pedido"
+        ? "Agrega el teléfono del cliente en 'Editar detalles'"
+        : "Agrega el teléfono del cliente en el formulario de la cotización");
+      return;
+    }
+    const phone = normalizePhoneMX(rawPhone);
+    const { total } = computeTotals(q.items, q.discount);
+    const lines = [`Hola ${q.client}, te comparto tu cotización ${q.folioLabel} de ${settings.name}.`, `Total: ${money(total)}`];
+    if (q.status === "pedido") {
+      const saldo = Math.max(total - abonosTotal(q), 0);
+      lines.push(`Saldo pendiente: ${money(saldo)}`);
+    }
+    lines.push("En un momento te mando el PDF por aquí mismo. ¡Gracias!");
+    const message = lines.join("\n");
+ 
+    await generatePDF(viewerTicket, `${q.folioLabel}_${q.client}`);
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, "_blank");
+    toast("Se abrió el chat del cliente — adjunta el PDF descargado con 📎 y da enviar");
   });
  
   /* ---------------- Abonos ---------------- */
@@ -832,7 +945,7 @@
     }
     document.getElementById("orderFecha").value = (q.pedido && q.pedido.fechaEstimada) || "";
     document.getElementById("orderClientName").value = q.client || "";
-    document.getElementById("orderClientPhone").value = (q.pedido && q.pedido.clientPhone) || settings.phone || "";
+    document.getElementById("orderClientPhone").value = (q.pedido && q.pedido.clientPhone) || q.clientPhone || "";
     document.getElementById("orderClientAddress").value = (q.pedido && q.pedido.clientAddress) || "";
  
     viewerModal.hidden = true;
@@ -967,6 +1080,32 @@
     if (e.target.classList.contains("picker-check")) refreshLoteSummary();
   });
  
+  function renderLoteTimeline(l) {
+    const wrap = document.getElementById("loteTimeline");
+    const label = document.getElementById("loteTimelineLabel");
+    const history = l && Array.isArray(l.statusHistory) ? l.statusHistory : [];
+    if (history.length === 0) {
+      label.hidden = true;
+      wrap.innerHTML = "";
+      return;
+    }
+    label.hidden = false;
+    wrap.innerHTML = [...history]
+      .sort((a, b) => new Date(b.at) - new Date(a.at))
+      .map((h, idx, arr) => `
+        <div class="timeline-row">
+          <div class="timeline-dot-col">
+            <div class="timeline-dot"></div>
+            ${idx < arr.length - 1 ? `<div class="timeline-line"></div>` : ""}
+          </div>
+          <div class="timeline-body">
+            <strong>${stageLabel(h.status)}</strong>
+            <small>${formatDateTime(h.at)}</small>
+          </div>
+        </div>
+      `).join("");
+  }
+ 
   function openLoteModal(id) {
     editingLoteId = id || null;
     const l = id ? lotes.find((x) => x.id === id) : null;
@@ -981,6 +1120,7 @@
     document.getElementById("deleteLoteBtn").hidden = !l;
  
     renderLotePicker(l ? l.id : null);
+    renderLoteTimeline(l);
     refreshLoteSummary();
     loteModal.hidden = false;
   }
