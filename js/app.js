@@ -264,6 +264,26 @@
     return { subtotal, discountAmount, total };
   }
  
+  /* ---------------- Abonos de un pedido ----------------
+     Un pedido puede recibir varios abonos a lo largo del tiempo. Se guardan
+     como lista dentro de q.pedido.abonos. Si el pedido viene de una versión
+     anterior de la app (un solo campo "anticipo"), se migra automáticamente
+     a un primer abono la primera vez que se lee. */
+  function abonosOf(q) {
+    if (!q.pedido) return [];
+    if (!Array.isArray(q.pedido.abonos)) {
+      const legacy = q.pedido.anticipo;
+      q.pedido.abonos = legacy && legacy > 0
+        ? [{ id: uid(), amount: legacy, date: q.date || todayISO(), note: "Anticipo inicial" }]
+        : [];
+      delete q.pedido.anticipo;
+    }
+    return q.pedido.abonos;
+  }
+  function abonosTotal(q) {
+    return abonosOf(q).reduce((sum, a) => sum + (a.amount || 0), 0);
+  }
+ 
   function currentDiscount() {
     return {
       enabled: discountEnabled.checked,
@@ -483,9 +503,7 @@
     card.className = "saved-card";
  
     if (q.status === "pedido") {
-      const anticipo = (q.pedido && q.pedido.anticipo) || 0;
-      const pct = paymentPct(anticipo, total);
-      const lote = q.loteId ? lotes.find((l) => l.id === q.loteId) : null;
+      const anticipo = abonosTotal(q);
       const extraBits = [];
       if (q.pedido && q.pedido.fechaEstimada) extraBits.push(`Entrega ${formatDate(q.pedido.fechaEstimada)}`);
       if (lote) extraBits.push(lote.folioLabel);
@@ -522,8 +540,7 @@
   function loteFinancials(lote) {
     const members = quotes.filter((q) => q.loteId === lote.id);
     const esperado = members.reduce((s, q) => s + computeTotals(q.items, q.discount).total, 0);
-    const cobrado = members.reduce((s, q) => s + ((q.pedido && q.pedido.anticipo) || 0), 0);
-    const costoTotal = (lote.costoMercancia || 0) + (lote.costoEnvio || 0);
+    const cobrado = members.reduce((s, q) => s + abonosTotal(q), 0);
     const ganancia = esperado - costoTotal;
     const pendiente = Math.max(esperado - cobrado, 0);
     const pct = paymentPct(cobrado, esperado);
@@ -579,6 +596,25 @@
   const orderInfo = document.getElementById("orderInfo");
   let viewerQuoteId = null;
  
+  function renderAbonosList(q) {
+    const el = document.getElementById("oiAbonosList");
+    const list = abonosOf(q);
+    if (list.length === 0) {
+      el.innerHTML = `<p class="abonos-empty">Aún no hay abonos registrados.</p>`;
+      return;
+    }
+    el.innerHTML = [...list]
+      .sort((a, b) => new Date(b.date) - new Date(a.date))
+      .map((a) => `
+        <div class="abono-row">
+          <span class="abono-date">${formatDate(a.date)}</span>
+          <span class="abono-note">${escapeHtml(a.note || "")}</span>
+          <span class="abono-amt">${money(a.amount)}</span>
+          <button type="button" class="abono-del" data-aid="${a.id}" aria-label="Eliminar abono">×</button>
+        </div>
+      `).join("");
+  }
+ 
   function openViewer(id) {
     const q = quotes.find((x) => x.id === id);
     if (!q) return;
@@ -590,7 +626,7 @@
       slideConfirm.hidden = true;
       orderInfo.hidden = false;
       const { total } = computeTotals(q.items, q.discount);
-      const anticipo = (q.pedido && q.pedido.anticipo) || 0;
+      const anticipo = abonosTotal(q);
       const lote = q.loteId ? lotes.find((l) => l.id === q.loteId) : null;
       document.getElementById("oiStageBadge").textContent = stageLabel(q.pedidoStatus);
       document.getElementById("oiStageBadge").className = `status-badge stage-${q.pedidoStatus || "preparacion"}`;
@@ -601,6 +637,7 @@
       document.getElementById("oiLote").textContent = lote ? lote.folioLabel : "Sin lote asignar";
       document.getElementById("oiAddress").textContent = (q.pedido && q.pedido.clientAddress)
         ? `📍 ${q.pedido.clientAddress}` : "";
+      renderAbonosList(q);
     } else {
       orderInfo.hidden = true;
       slideConfirm.hidden = false;
@@ -637,14 +674,81 @@
     generatePDF(viewerTicket, `${q.folioLabel}_${q.client}`);
   });
  
+  /* ---------------- Abonos ---------------- */
+  const abonoModal = document.getElementById("abonoModal");
+  let abonoQuoteId = null;
+ 
+  function openAbonoModal(qid) {
+    const q = quotes.find((x) => x.id === qid);
+    if (!q) return;
+    abonoQuoteId = qid;
+    const total = computeTotals(q.items, q.discount).total;
+    const disponible = Math.max(total - abonosTotal(q), 0);
+    document.getElementById("abonoMaxNote").textContent = `Máximo disponible: ${money(disponible)}`;
+    document.getElementById("abonoMonto").value = "";
+    document.getElementById("abonoMonto").max = disponible;
+    document.getElementById("abonoFecha").value = todayISO();
+    document.getElementById("abonoNota").value = "";
+    abonoModal.hidden = false;
+  }
+  document.getElementById("addAbonoBtn").addEventListener("click", () => {
+    if (viewerQuoteId) openAbonoModal(viewerQuoteId);
+  });
+  function closeAbonoModal() { abonoModal.hidden = true; }
+  document.getElementById("closeAbonoModal").addEventListener("click", closeAbonoModal);
+  document.getElementById("cancelAbonoBtn").addEventListener("click", closeAbonoModal);
+  abonoModal.addEventListener("click", (e) => { if (e.target === abonoModal) closeAbonoModal(); });
+ 
+  document.getElementById("saveAbonoBtn").addEventListener("click", () => {
+    const q = quotes.find((x) => x.id === abonoQuoteId);
+    if (!q) return;
+    const monto = parseFloat(document.getElementById("abonoMonto").value) || 0;
+    if (monto <= 0) {
+      toast("Escribe un monto válido");
+      return;
+    }
+    const total = computeTotals(q.items, q.discount).total;
+    const yaAbonado = abonosTotal(q);
+    if (yaAbonado + monto > total) {
+      toast(`Ese abono excede el total del pedido. Máximo disponible: ${money(Math.max(total - yaAbonado, 0))}`);
+      return;
+    }
+    abonosOf(q).push({
+      id: uid(),
+      amount: monto,
+      date: document.getElementById("abonoFecha").value || todayISO(),
+      note: document.getElementById("abonoNota").value.trim(),
+    });
+    saveQuotes(quotes);
+    toast("Abono agregado");
+    abonoModal.hidden = true;
+    renderLists();
+    if (viewerQuoteId === q.id) openViewer(q.id);
+  });
+ 
+  // Eliminar un abono (delegado, porque las filas se vuelven a dibujar cada vez)
+  document.getElementById("oiAbonosList").addEventListener("click", (e) => {
+    const btn = e.target.closest(".abono-del");
+    if (!btn) return;
+    const q = quotes.find((x) => x.id === viewerQuoteId);
+    if (!q) return;
+    if (!confirm("¿Eliminar este abono?")) return;
+    q.pedido.abonos = abonosOf(q).filter((a) => a.id !== btn.dataset.aid);
+    saveQuotes(quotes);
+    renderLists();
+    openViewer(viewerQuoteId);
+  });
+ 
   /* ---------------- Barra deslizable (fábrica reutilizable) ---------------- */
   function setupSlider(track, thumb, onConfirm) {
     let dragging = false, startX = 0, thumbX = 0, maxTravel = 0;
+    const label = track.querySelector(".slide-label");
  
     function reset() {
       thumbX = 0;
       thumb.style.transform = "translateX(0px)";
       track.classList.remove("confirmed", "dragging");
+      if (label) label.style.opacity = "1";
     }
     function trackMax() {
       return track.clientWidth - thumb.offsetWidth - 8; // 8 = padding (4px * 2)
@@ -662,6 +766,7 @@
       x = Math.max(0, Math.min(x, maxTravel));
       thumbX = x;
       thumb.style.transform = `translateX(${x}px)`;
+      if (label) label.style.opacity = String(Math.max(0, 1 - x / (maxTravel || 1)));
     });
     function endDrag() {
       if (!dragging) return;
@@ -670,10 +775,11 @@
       if (maxTravel > 0 && thumbX >= maxTravel * 0.82) {
         track.classList.add("confirmed");
         thumb.style.transform = `translateX(${maxTravel}px)`;
+        if (label) label.style.opacity = "0";
         const ok = onConfirm();
         if (ok === false) setTimeout(reset, 350);
       } else {
-        reset();
+        reset(); // el thumb Y el texto regresan juntos
       }
     }
     thumb.addEventListener("pointerup", endDrag);
@@ -705,6 +811,7 @@
     if (!q) return;
     orderQuoteId = id;
     const { total } = computeTotals(q.items, q.discount);
+    const isFirstConfirm = q.status !== "pedido";
  
     orderSummary.innerHTML = `
       <div class="os-client">${escapeHtml(q.client)} · ${escapeHtml(q.folioLabel)}</div>
@@ -712,7 +819,14 @@
       <div class="os-row total"><span>Total</span><span>${money(total)}</span></div>
     `;
  
-    document.getElementById("orderAnticipo").value = (q.pedido && q.pedido.anticipo) || "";
+    document.getElementById("orderAnticipoFieldWrap").hidden = !isFirstConfirm;
+    if (isFirstConfirm) {
+      document.getElementById("orderAnticipo").value = "";
+      document.getElementById("orderAnticipo").max = total;
+      document.getElementById("orderAnticipoNote").textContent = `No puede ser mayor al total del pedido (${money(total)}).`;
+    } else {
+      document.getElementById("orderAnticipoNote").textContent = "";
+    }
     document.getElementById("orderFecha").value = (q.pedido && q.pedido.fechaEstimada) || "";
     document.getElementById("orderClientName").value = q.client || "";
     document.getElementById("orderClientPhone").value = (q.pedido && q.pedido.clientPhone) || settings.phone || "";
@@ -742,16 +856,34 @@
       toast("Escribe el nombre del cliente");
       return false;
     }
+    const total = computeTotals(q.items, q.discount).total;
+    const isFirstConfirm = q.status !== "pedido";
+ 
+    if (isFirstConfirm) {
+      const anticipoInicial = parseFloat(document.getElementById("orderAnticipo").value) || 0;
+      if (anticipoInicial > total) {
+        toast(`El anticipo no puede ser mayor al total del pedido (${money(total)})`);
+        return false;
+      }
+    }
+ 
+    if (!q.pedido) q.pedido = {};
+    if (!Array.isArray(q.pedido.abonos)) q.pedido.abonos = [];
+    if (isFirstConfirm) {
+      const anticipoInicial = parseFloat(document.getElementById("orderAnticipo").value) || 0;
+      if (anticipoInicial > 0) {
+        q.pedido.abonos.push({ id: uid(), amount: anticipoInicial, date: todayISO(), note: "Anticipo inicial" });
+      }
+    }
+    q.pedido.fechaEstimada = document.getElementById("orderFecha").value || "";
+    q.pedido.clientPhone = document.getElementById("orderClientPhone").value.trim();
+    q.pedido.clientAddress = document.getElementById("orderClientAddress").value.trim();
+ 
     q.client = clientName;
     q.status = "pedido";
     if (!q.pedidoStatus) q.pedidoStatus = "preparacion";
     if (q.loteId === undefined) q.loteId = null;
-    q.pedido = {
-      anticipo: parseFloat(document.getElementById("orderAnticipo").value) || 0,
-      fechaEstimada: document.getElementById("orderFecha").value || "",
-      clientPhone: document.getElementById("orderClientPhone").value.trim(),
-      clientAddress: document.getElementById("orderClientAddress").value.trim(),
-    };
+ 
     saveQuotes(quotes);
     renderLists();
     toast(`Pedido confirmado ✓ ${q.folioLabel}`);
@@ -802,8 +934,7 @@
     const ids = selectedPedidoIds();
     const members = quotes.filter((q) => ids.includes(q.id));
     const esperado = members.reduce((s, q) => s + computeTotals(q.items, q.discount).total, 0);
-    const cobrado = members.reduce((s, q) => s + ((q.pedido && q.pedido.anticipo) || 0), 0);
-    const costoMercancia = parseFloat(document.getElementById("loteCostoMercancia").value) || 0;
+    const cobrado = members.reduce((s, q) => s + abonosTotal(q), 0);
     const costoEnvio = parseFloat(document.getElementById("loteCostoEnvio").value) || 0;
     const costoTotal = costoMercancia + costoEnvio;
     const ganancia = esperado - costoTotal;
