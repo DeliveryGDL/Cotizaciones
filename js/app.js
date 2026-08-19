@@ -182,7 +182,7 @@
       card.innerHTML = `
         <div class="item-thumb" title="Subir foto">
           ${item.img ? `<img src="${item.img}" alt="">` : `<span class="placeholder">📷</span>`}
-          <input type="file" accept="image/*" capture="environment" class="item-file">
+          <input type="file" accept="image/*" class="item-file">
         </div>
         <input type="text" class="item-desc" placeholder="Descripción del producto" value="${escapeHtml(item.name)}">
         <button type="button" class="item-remove" aria-label="Quitar">✕</button>
@@ -504,6 +504,8 @@
  
     if (q.status === "pedido") {
       const anticipo = abonosTotal(q);
+      const pct = paymentPct(anticipo, total);
+      const lote = q.loteId ? lotes.find((l) => l.id === q.loteId) : null;
       const extraBits = [];
       if (q.pedido && q.pedido.fechaEstimada) extraBits.push(`Entrega ${formatDate(q.pedido.fechaEstimada)}`);
       if (lote) extraBits.push(lote.folioLabel);
@@ -541,6 +543,7 @@
     const members = quotes.filter((q) => q.loteId === lote.id);
     const esperado = members.reduce((s, q) => s + computeTotals(q.items, q.discount).total, 0);
     const cobrado = members.reduce((s, q) => s + abonosTotal(q), 0);
+    const costoTotal = (lote.costoMercancia || 0) + (lote.costoEnvio || 0);
     const ganancia = esperado - costoTotal;
     const pendiente = Math.max(esperado - cobrado, 0);
     const pct = paymentPct(cobrado, esperado);
@@ -935,6 +938,7 @@
     const members = quotes.filter((q) => ids.includes(q.id));
     const esperado = members.reduce((s, q) => s + computeTotals(q.items, q.discount).total, 0);
     const cobrado = members.reduce((s, q) => s + abonosTotal(q), 0);
+    const costoMercancia = parseFloat(document.getElementById("loteCostoMercancia").value) || 0;
     const costoEnvio = parseFloat(document.getElementById("loteCostoEnvio").value) || 0;
     const costoTotal = costoMercancia + costoEnvio;
     const ganancia = esperado - costoTotal;
