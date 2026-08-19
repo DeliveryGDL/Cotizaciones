@@ -100,13 +100,14 @@ input, select, textarea{ font-family: inherit; }
  
 /* ---------- Tabs ---------- */
 .tabs{
-  display:flex; gap:6px; padding: 10px 16px 0;
+  display:flex; gap:4px; padding: 10px 12px 0;
   background: var(--ink); position:sticky; top:calc(62px + env(safe-area-inset-top)); z-index:19;
+  overflow-x:auto; -webkit-overflow-scrolling:touch;
 }
 .tab{
-  flex:1; border:none; background: transparent; color:#9AA0AA;
-  padding:10px 4px; font-weight:600; font-size:12.5px; border-radius: 10px 10px 0 0;
-  display:flex; align-items:center; justify-content:center; gap:5px;
+  flex:1 0 auto; min-width:64px; border:none; background: transparent; color:#9AA0AA;
+  padding:10px 4px; font-weight:600; font-size:11.5px; border-radius: 10px 10px 0 0;
+  display:flex; align-items:center; justify-content:center; gap:4px;
   white-space:nowrap;
 }
 .tab.active{ background: var(--paper-dim); color: var(--ink); }
@@ -356,6 +357,46 @@ input, select, textarea{ font-family: inherit; }
 .picker-info{ display:flex; flex-direction:column; gap:1px; min-width:0; }
 .picker-info strong{ font-size:13px; }
 .picker-info small{ font-size:11px; color: var(--muted); font-family: var(--font-mono); }
+ 
+/* ---------- Dashboard / Resumen ---------- */
+.stat-grid{ display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:6px; }
+.stat-card{
+  background:#fff; border:1px solid var(--line); border-radius: var(--radius-sm);
+  padding:12px 14px; display:flex; flex-direction:column; gap:2px;
+}
+.stat-card .stat-value{ font-family: var(--font-display); font-weight:700; font-size:19px; color: var(--ink); }
+.stat-card .stat-label{ font-size:11px; color: var(--muted); }
+.stat-card.accent .stat-value{ color: var(--mango-deep); }
+.stat-card.good .stat-value{ color: var(--success); }
+ 
+.stage-breakdown{ display:flex; flex-direction:column; gap:6px; }
+.stage-row{
+  display:flex; align-items:center; justify-content:space-between;
+  background:#fff; border:1px solid var(--line); border-radius: var(--radius-sm); padding:9px 12px;
+}
+.stage-row .stage-count{ font-family: var(--font-mono); font-weight:700; font-size:13px; }
+ 
+/* ---------- Línea de tiempo del lote ---------- */
+.lote-timeline{ display:flex; flex-direction:column; gap:0; margin: 4px 0 4px; }
+.lote-timeline:empty{ display:none; }
+.timeline-row{ display:flex; gap:10px; padding-bottom:14px; position:relative; }
+.timeline-row:last-child{ padding-bottom:0; }
+.timeline-dot-col{ display:flex; flex-direction:column; align-items:center; }
+.timeline-dot{ width:10px; height:10px; border-radius:50%; background: var(--mango-deep); flex-shrink:0; margin-top:3px; }
+.timeline-row:first-child .timeline-dot{ background: var(--success); }
+.timeline-line{ width:2px; flex:1; background: var(--line); margin-top:2px; }
+.timeline-body strong{ display:block; font-size:12.5px; }
+.timeline-body small{ font-size:11px; color: var(--muted); font-family: var(--font-mono); }
+.timeline-empty{ font-size:12.5px; color: var(--muted); margin:2px 0 4px; }
+ 
+/* ---------- Botón de WhatsApp ---------- */
+.btn-whatsapp{
+  width:100%; margin-top:14px; background:#25D366; color:#fff; border:none;
+  border-radius: var(--radius-sm); padding:13px; font-weight:700; font-size:14px;
+  display:flex; align-items:center; justify-content:center; gap:8px;
+}
+.btn-whatsapp:hover{ filter: brightness(1.05); }
+.btn-whatsapp:disabled{ opacity:0.6; }
  
 /* ---------- Modals ---------- */
 .modal-backdrop{
