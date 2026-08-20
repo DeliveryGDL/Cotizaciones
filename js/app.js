@@ -1,7 +1,15 @@
 /* =========================================================
    DELIVERY GDL · Cotizador — lógica de la app
-   Persistencia: localStorage (100% en el dispositivo del usuario)
+   Persistencia: Firestore (sincronizado entre dispositivos, con
+   caché offline). Las claves antiguas de localStorage solo se leen
+   una vez, para migrar datos previos a la nube en el primer login.
    ========================================================= */
+ 
+import {
+  auth, db,
+  signInWithEmailAndPassword, onAuthStateChanged, signOut,
+  doc, getDoc, setDoc, onSnapshot,
+} from "./firebase-init.js";
  
 (() => {
   "use strict";
@@ -28,7 +36,9 @@
     deltaDolarEnvio: 1.25,
   };
  
-  function loadSettings() {
+  // Lectura de las claves antiguas de localStorage — solo se usan una vez,
+  // para migrar datos de pruebas anteriores a Firestore en el primer login.
+  function loadLegacySettings() {
     try {
       const raw = localStorage.getItem(LS_SETTINGS);
       return raw ? { ...defaultSettings, ...JSON.parse(raw) } : { ...defaultSettings };
@@ -36,10 +46,7 @@
       return { ...defaultSettings };
     }
   }
-  function saveSettings(s) {
-    localStorage.setItem(LS_SETTINGS, JSON.stringify(s));
-  }
-  function loadQuotes() {
+  function loadLegacyQuotes() {
     try {
       const raw = localStorage.getItem(LS_QUOTES);
       return raw ? JSON.parse(raw) : [];
@@ -47,10 +54,7 @@
       return [];
     }
   }
-  function saveQuotes(list) {
-    localStorage.setItem(LS_QUOTES, JSON.stringify(list));
-  }
-  function loadLotes() {
+  function loadLegacyLotes() {
     try {
       const raw = localStorage.getItem(LS_LOTES);
       return raw ? JSON.parse(raw) : [];
@@ -58,13 +62,32 @@
       return [];
     }
   }
+ 
+  // currentUid se asigna al iniciar sesión (ver sección de Autenticación,
+  // al final del archivo). Mientras no haya sesión, guardar no hace nada.
+  let currentUid = null;
+  function settingsDocRef(uid) { return doc(db, "businesses", uid, "data", "settings"); }
+  function quotesDocRef(uid) { return doc(db, "businesses", uid, "data", "quotes"); }
+  function lotesDocRef(uid) { return doc(db, "businesses", uid, "data", "lotes"); }
+ 
+  function saveSettings(s) {
+    if (!currentUid) return;
+    setDoc(settingsDocRef(currentUid), s).catch(() => toast("No se pudo guardar — revisa tu conexión"));
+  }
+  function saveQuotes(list) {
+    if (!currentUid) return;
+    setDoc(quotesDocRef(currentUid), { list }).catch(() => toast("No se pudo guardar — revisa tu conexión"));
+  }
   function saveLotes(list) {
-    localStorage.setItem(LS_LOTES, JSON.stringify(list));
+    if (!currentUid) return;
+    setDoc(lotesDocRef(currentUid), { list }).catch(() => toast("No se pudo guardar — revisa tu conexión"));
   }
  
-  let settings = loadSettings();
-  let quotes = loadQuotes();
-  let lotes = loadLotes();
+  // Se llenan de verdad cuando llegan los datos de Firestore (ver
+  // attachRemoteListeners). Arrancan vacíos mientras carga la sesión.
+  let settings = { ...defaultSettings };
+  let quotes = [];
+  let lotes = [];
  
   /* ---------------- Tabs (se registra primero: si algo más abajo llega a
      fallar, la navegación entre pestañas sigue funcionando) ---------------- */
@@ -1408,4 +1431,113 @@
     }
   }
   init();
+ 
+  /* ---------------- Autenticación y sincronización ---------------- */
+  const loginGateEl = document.getElementById("loginGate");
+  const appShellEl = document.getElementById("appShell");
+  const loginFormEl = document.getElementById("loginForm");
+  const loginErrorEl = document.getElementById("loginError");
+  const loginSubmitBtn = document.getElementById("loginSubmitBtn");
+ 
+  let unsubSettings = null, unsubQuotes = null, unsubLotes = null;
+ 
+  // La primera vez que alguien entra y la nube está vacía, se sube lo que
+  // ya hubiera guardado ESTE dispositivo en localStorage (de antes de tener
+  // sincronización), para no perder cotizaciones de prueba anteriores.
+  async function migrateLegacyDataIfNeeded(uid) {
+    try {
+      const [qSnap, lSnap, sSnap] = await Promise.all([
+        getDoc(quotesDocRef(uid)),
+        getDoc(lotesDocRef(uid)),
+        getDoc(settingsDocRef(uid)),
+      ]);
+      if (qSnap.exists() || lSnap.exists() || sSnap.exists()) return; // ya hay datos en la nube
+ 
+      const legacyQuotes = loadLegacyQuotes();
+      const legacyLotes = loadLegacyLotes();
+      const legacySettings = loadLegacySettings();
+ 
+      await setDoc(settingsDocRef(uid), legacySettings);
+      if (legacyQuotes.length > 0) await setDoc(quotesDocRef(uid), { list: legacyQuotes });
+      if (legacyLotes.length > 0) await setDoc(lotesDocRef(uid), { list: legacyLotes });
+ 
+      if (legacyQuotes.length > 0 || legacyLotes.length > 0) {
+        toast("Se migraron tus datos de este dispositivo a la nube ✓");
+      }
+    } catch (e) {
+      console.error("Migración fallida:", e);
+    }
+  }
+ 
+  function attachRemoteListeners(uid) {
+    unsubSettings = onSnapshot(settingsDocRef(uid), (snap) => {
+      settings = snap.exists() ? { ...defaultSettings, ...snap.data() } : { ...defaultSettings };
+      document.getElementById("brandName").textContent = settings.name;
+      renderTicket();
+    });
+    unsubQuotes = onSnapshot(quotesDocRef(uid), (snap) => {
+      quotes = snap.exists() && Array.isArray(snap.data().list) ? snap.data().list : [];
+      renderLists();
+      if (viewerQuoteId && !quotes.find((x) => x.id === viewerQuoteId)) viewerModal.hidden = true;
+    });
+    unsubLotes = onSnapshot(lotesDocRef(uid), (snap) => {
+      lotes = snap.exists() && Array.isArray(snap.data().list) ? snap.data().list : [];
+      renderLists();
+    });
+  }
+ 
+  function detachRemoteListeners() {
+    if (unsubSettings) unsubSettings();
+    if (unsubQuotes) unsubQuotes();
+    if (unsubLotes) unsubLotes();
+    unsubSettings = unsubQuotes = unsubLotes = null;
+  }
+ 
+  onAuthStateChanged(auth, async (user) => {
+    if (user) {
+      currentUid = user.uid;
+      loginErrorEl.hidden = true;
+      loginFormEl.reset();
+      await migrateLegacyDataIfNeeded(currentUid);
+      attachRemoteListeners(currentUid);
+      loginGateEl.hidden = true;
+      appShellEl.hidden = false;
+    } else {
+      detachRemoteListeners();
+      currentUid = null;
+      settings = { ...defaultSettings };
+      quotes = [];
+      lotes = [];
+      renderLists();
+      renderTicket();
+      appShellEl.hidden = true;
+      loginGateEl.hidden = false;
+    }
+  });
+ 
+  loginFormEl.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    loginErrorEl.hidden = true;
+    loginSubmitBtn.disabled = true;
+    loginSubmitBtn.textContent = "Entrando…";
+    try {
+      await signInWithEmailAndPassword(
+        auth,
+        document.getElementById("loginEmail").value.trim(),
+        document.getElementById("loginPassword").value
+      );
+    } catch (err) {
+      loginErrorEl.textContent = "Correo o contraseña incorrectos.";
+      loginErrorEl.hidden = false;
+    } finally {
+      loginSubmitBtn.disabled = false;
+      loginSubmitBtn.textContent = "Entrar";
+    }
+  });
+ 
+  document.getElementById("logoutBtn").addEventListener("click", () => {
+    if (!confirm("¿Cerrar sesión en este dispositivo?")) return;
+    settingsModal.hidden = true;
+    signOut(auth);
+  });
 })();
