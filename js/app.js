@@ -1,10 +1,3 @@
-/* =========================================================
-   DELIVERY GDL · Cotizador — lógica de la app
-   Persistencia: Firestore (sincronizado entre dispositivos, con
-   caché offline). Las claves antiguas de localStorage solo se leen
-   una vez, para migrar datos previos a la nube en el primer login.
-   ========================================================= */
- 
 import {
   auth, db,
   signInWithEmailAndPassword, onAuthStateChanged, signOut,
@@ -641,6 +634,9 @@ import {
   const lotesListEl = document.getElementById("lotesList");
   const emptyMsgLotesEl = document.getElementById("emptyMsgLotes");
   const lotesCountEl = document.getElementById("lotesCount");
+  const clientesListEl = document.getElementById("clientesList");
+  const emptyMsgClientesEl = document.getElementById("emptyMsgClientes");
+  const clientesCountEl = document.getElementById("clientesCount");
  
   function savedCardEl(q) {
     const { total } = computeTotals(q.items, q.discount);
@@ -695,6 +691,32 @@ import {
     return { members, esperado, cobrado, costoTotal, ganancia, pendiente, pct };
   }
  
+  /* ---------------- Clientes (agrupados por teléfono; nombre como respaldo) ---------------- */
+  function aggregateClients() {
+    const map = new Map();
+    quotes.forEach((q) => {
+      const phone = resolveClientPhone(q);
+      const key = phone ? normalizePhoneMX(phone) : `name:${(q.client || "").trim().toLowerCase()}`;
+      if (!key || key === "name:") return; // sin nombre ni teléfono, no hay con qué agrupar
+      if (!map.has(key)) map.set(key, { key, name: "", phone: "", address: "", quotes: [], _latestAt: null });
+      const entry = map.get(key);
+      entry.quotes.push(q);
+      const at = q.updatedAt || q.createdAt || q.date || "";
+      if (!entry._latestAt || new Date(at) > new Date(entry._latestAt)) {
+        entry._latestAt = at;
+        entry.name = q.client || entry.name;
+        if (phone) entry.phone = phone;
+        if (q.pedido && q.pedido.clientAddress) entry.address = q.pedido.clientAddress;
+      }
+    });
+    return Array.from(map.values())
+      .map((c) => {
+        const totalComprado = c.quotes.reduce((s, q) => s + (q.status === "pedido" ? computeTotals(q.items, q.discount).total : 0), 0);
+        return { ...c, totalComprado };
+      })
+      .sort((a, b) => new Date(b._latestAt || 0) - new Date(a._latestAt || 0));
+  }
+ 
   function loteCardEl(l) {
     const f = loteFinancials(l);
     const card = document.createElement("div");
@@ -716,6 +738,48 @@ import {
     return card;
   }
  
+  function clienteCardEl(c) {
+    const card = document.createElement("div");
+    card.className = "saved-card";
+    card.innerHTML = `
+      <div class="saved-main">
+        <strong>${escapeHtml(c.name || "Sin nombre")}</strong>
+        <span class="saved-meta">${escapeHtml(c.phone || "Sin teléfono")} · ${c.quotes.length} cotizaci${c.quotes.length === 1 ? "ón" : "ones"}</span>
+      </div>
+      <div class="saved-amount">
+        <div class="amt">${money(c.totalComprado)}</div>
+        <span class="saved-meta">histórico comprado</span>
+      </div>
+    `;
+    card.addEventListener("click", () => openClienteModal(c.key));
+    return card;
+  }
+ 
+  const clienteModal = document.getElementById("clienteModal");
+  function openClienteModal(key) {
+    const c = aggregateClients().find((x) => x.key === key);
+    if (!c) return;
+    document.getElementById("clienteModalTitle").textContent = c.name || "Cliente";
+    document.getElementById("clienteInfoGrid").innerHTML = `
+      <div><span>Teléfono</span><strong>${escapeHtml(c.phone || "—")}</strong></div>
+      <div><span>Domicilio</span><strong>${escapeHtml(c.address || "—")}</strong></div>
+      <div><span>Cotizaciones</span><strong>${c.quotes.length}</strong></div>
+      <div><span>Total histórico</span><strong>${money(c.totalComprado)}</strong></div>
+    `;
+    const histEl = document.getElementById("clienteHistoryList");
+    histEl.innerHTML = "";
+    [...c.quotes]
+      .sort((a, b) => new Date(b.createdAt || b.date || 0) - new Date(a.createdAt || a.date || 0))
+      .forEach((q) => {
+        const card = savedCardEl(q);
+        card.addEventListener("click", () => { clienteModal.hidden = true; });
+        histEl.appendChild(card);
+      });
+    clienteModal.hidden = false;
+  }
+  document.getElementById("closeClienteModal").addEventListener("click", () => (clienteModal.hidden = true));
+  clienteModal.addEventListener("click", (e) => { if (e.target === clienteModal) clienteModal.hidden = true; });
+ 
   function renderLists() {
     const activas = quotes.filter((q) => q.status === "activa");
     const pedidos = quotes.filter((q) => q.status === "pedido");
@@ -723,17 +787,27 @@ import {
     savedListEl.innerHTML = "";
     activas.forEach((q) => savedListEl.appendChild(savedCardEl(q)));
     tabCountEl.textContent = activas.length;
+    tabCountEl.hidden = activas.length === 0;
     emptyMsgEl.hidden = activas.length > 0;
  
     pedidosListEl.innerHTML = "";
     pedidos.forEach((q) => pedidosListEl.appendChild(savedCardEl(q)));
     pedidosCountEl.textContent = pedidos.length;
+    pedidosCountEl.hidden = pedidos.length === 0;
     emptyMsgPedidosEl.hidden = pedidos.length > 0;
  
     lotesListEl.innerHTML = "";
     lotes.forEach((l) => lotesListEl.appendChild(loteCardEl(l)));
     lotesCountEl.textContent = lotes.length;
+    lotesCountEl.hidden = lotes.length === 0;
     emptyMsgLotesEl.hidden = lotes.length > 0;
+ 
+    const clients = aggregateClients();
+    clientesListEl.innerHTML = "";
+    clients.forEach((c) => clientesListEl.appendChild(clienteCardEl(c)));
+    clientesCountEl.textContent = clients.length;
+    clientesCountEl.hidden = clients.length === 0;
+    emptyMsgClientesEl.hidden = clients.length > 0;
  
     renderDashboard(activas, pedidos);
   }
@@ -745,54 +819,46 @@ import {
     const lotesActivos = lotes.filter((l) => l.status !== "listo_entrega").length;
     const gananciaLotes = lotes.reduce((s, l) => s + loteFinancials(l).ganancia, 0);
  
-    const statGridEl = document.getElementById("statGrid");
-    statGridEl.innerHTML = `
-      <div class="stat-card accent">
-        <span class="stat-value">${activas.length}</span>
-        <span class="stat-label">Cotizaciones activas</span>
+    const flowEl = document.getElementById("dashboardFlow");
+    flowEl.innerHTML = `
+      <div class="dash-hero">
+        <div class="dash-label">Por cobrar</div>
+        <div class="dash-hero-value">${money(porCobrar)}</div>
+        <div class="dash-hero-label">${pedidos.length} pedido${pedidos.length === 1 ? "" : "s"} confirmado${pedidos.length === 1 ? "" : "s"}</div>
       </div>
-      <div class="stat-card good">
-        <span class="stat-value">${pedidos.length}</span>
-        <span class="stat-label">Pedidos confirmados</span>
+ 
+      <div class="dash-stats">
+        <div class="dash-stat"><span class="v">${activas.length}</span><span class="l">Activas</span></div>
+        <div class="dash-stat"><span class="v good">${money(cobradoTotal)}</span><span class="l">Cobrado</span></div>
+        <div class="dash-stat"><span class="v">${lotesActivos}</span><span class="l">Lotes activos</span></div>
+        <div class="dash-stat"><span class="v ${gananciaLotes >= 0 ? "good" : ""}">${money(gananciaLotes)}</span><span class="l">Ganancia lotes</span></div>
       </div>
-      <div class="stat-card">
-        <span class="stat-value">${money(porCobrar)}</span>
-        <span class="stat-label">Por cobrar (pedidos)</span>
-      </div>
-      <div class="stat-card good">
-        <span class="stat-value">${money(cobradoTotal)}</span>
-        <span class="stat-label">Cobrado en abonos</span>
-      </div>
-      <div class="stat-card">
-        <span class="stat-value">${lotesActivos}</span>
-        <span class="stat-label">Lotes activos</span>
-      </div>
-      <div class="stat-card ${gananciaLotes >= 0 ? "good" : ""}">
-        <span class="stat-value">${money(gananciaLotes)}</span>
-        <span class="stat-label">Ganancia estimada (lotes)</span>
+ 
+      ${pedidos.length > 0 ? `
+        <div class="dash-stages">
+          ${PEDIDO_STAGES.map((s) => {
+            const count = pedidos.filter((q) => (q.pedidoStatus || "preparacion") === s.key).length;
+            return `<span class="dash-stage-pill ${s.key === "listo_entrega" ? "done" : ""}"><span class="dot"></span>${s.label} <b>${count}</b></span>`;
+          }).join("")}
+        </div>
+      ` : ""}
+ 
+      <div class="dash-upcoming">
+        <div class="dash-label">Próximas entregas</div>
+        <div id="upcomingList" class="saved-list"></div>
       </div>
     `;
  
-    const stageBreakdownEl = document.getElementById("stageBreakdown");
-    stageBreakdownEl.innerHTML = PEDIDO_STAGES.map((s) => {
-      const count = pedidos.filter((q) => (q.pedidoStatus || "preparacion") === s.key).length;
-      return `
-        <div class="stage-row">
-          <span class="status-badge stage-${s.key}">${s.label}</span>
-          <span class="stage-count">${count}</span>
-        </div>
-      `;
-    }).join("");
- 
     const upcomingListEl = document.getElementById("upcomingList");
-    const emptyMsgUpcomingEl = document.getElementById("emptyMsgUpcoming");
     const upcoming = pedidos
       .filter((q) => q.pedido && q.pedido.fechaEstimada)
       .sort((a, b) => new Date(a.pedido.fechaEstimada) - new Date(b.pedido.fechaEstimada))
       .slice(0, 5);
-    upcomingListEl.innerHTML = "";
-    upcoming.forEach((q) => upcomingListEl.appendChild(savedCardEl(q)));
-    emptyMsgUpcomingEl.hidden = upcoming.length > 0;
+    if (upcoming.length === 0) {
+      upcomingListEl.innerHTML = `<p class="empty-msg" style="margin-top:8px;">No hay entregas con fecha programada.</p>`;
+    } else {
+      upcoming.forEach((q) => upcomingListEl.appendChild(savedCardEl(q)));
+    }
   }
  
   /* ---------------- Visor / modal de cotización guardada ---------------- */
@@ -1541,3 +1607,4 @@ import {
     signOut(auth);
   });
 })();
+ 
