@@ -1,17 +1,18 @@
-
 /* Service worker — cachea el app shell para que funcione sin conexión.
    Estrategia: RED PRIMERO para los archivos propios (index.html, css, js),
    así siempre se sirve la versión más nueva cuando hay internet, y solo se
    usa la copia guardada como respaldo si no hay señal. Esto evita que se
    mezclen versiones viejas y nuevas de los archivos entre sí.
-   Los datos (cotizaciones) viven en localStorage, no aquí. */
+   Los datos (cotizaciones, pedidos, lotes) viven en Firestore, sincronizados
+   entre dispositivos; Firestore trae su propia caché offline aparte. */
  
-const CACHE_NAME = "gdl-cotizador-v2";
+const CACHE_NAME = "gdl-cotizador-v3";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./css/styles.css",
   "./js/app.js",
+  "./js/firebase-init.js",
   "./manifest.json",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
@@ -62,4 +63,3 @@ self.addEventListener("fetch", (event) => {
       .catch(() => caches.match(req))
   );
 });
- 
