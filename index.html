@@ -47,38 +47,17 @@
  
   <!-- Top bar -->
   <header class="topbar">
-    <div class="brand">
-      <span class="brand-mark">DG</span>
-      <div class="brand-text">
-        <strong id="brandName">DELIVERY GDL</strong>
-        <small>Cotizador</small>
-      </div>
-    </div>
-    <button class="icon-btn" id="settingsBtn" title="Configuración" aria-label="Configuración">⚙</button>
+    <span class="wordmark" id="brandName">DELIVERY GDL</span>
+    <button class="icon-btn" id="settingsBtn" title="Configuración" aria-label="Configuración">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 12.9c.04-.3.06-.6.06-.9s-.02-.6-.06-.9l2-1.6-2-3.4-2.4 1a7.4 7.4 0 0 0-1.6-.9L15 3h-4l-.4 2.2c-.6.2-1.1.5-1.6.9l-2.4-1-2 3.4 2 1.6c-.04.3-.06.6-.06.9s.02.6.06.9l-2 1.6 2 3.4 2.4-1c.5.4 1 .7 1.6.9L11 21h4l.4-2.2c.6-.2 1.1-.5 1.6-.9l2.4 1 2-3.4-2-1.6Z"/></svg>
+    </button>
   </header>
- 
-  <!-- Tabs -->
-  <nav class="tabs" role="tablist">
-    <button class="tab active" data-tab="resumen" role="tab" aria-selected="true">Resumen</button>
-    <button class="tab" data-tab="nueva" role="tab" aria-selected="false">Nueva</button>
-    <button class="tab" data-tab="guardadas" role="tab" aria-selected="false">Activas <span class="tab-count" id="tabCount">0</span></button>
-    <button class="tab" data-tab="pedidos" role="tab" aria-selected="false">Pedidos <span class="tab-count" id="pedidosCount">0</span></button>
-    <button class="tab" data-tab="lotes" role="tab" aria-selected="false">Lotes <span class="tab-count" id="lotesCount">0</span></button>
-  </nav>
  
   <main class="views">
  
     <!-- ===================== VISTA: RESUMEN (dashboard) ===================== -->
     <section class="view active" id="view-resumen">
-      <div class="section-label"><span>Resumen general</span></div>
-      <div class="stat-grid" id="statGrid"></div>
- 
-      <div class="section-label"><span>Pedidos por etapa</span></div>
-      <div id="stageBreakdown" class="stage-breakdown"></div>
- 
-      <div class="section-label"><span>Próximas entregas</span></div>
-      <div id="upcomingList" class="saved-list"></div>
-      <p class="empty-msg" id="emptyMsgUpcoming" hidden>No hay entregas con fecha programada.</p>
+      <div id="dashboardFlow" class="dashboard-flow"></div>
     </section>
  
     <!-- ===================== VISTA: NUEVA COTIZACIÓN ===================== -->
@@ -194,7 +173,42 @@
       <p class="empty-msg" id="emptyMsgLotes" hidden>Aún no tienes lotes.<br>Crea uno y asígnale los pedidos que van en ese envío.</p>
     </section>
  
+    <!-- ===================== VISTA: CLIENTES ===================== -->
+    <section class="view" id="view-clientes">
+      <div class="section-label">
+        <span>Clientes</span>
+      </div>
+      <div id="clientesList" class="saved-list"></div>
+      <p class="empty-msg" id="emptyMsgClientes" hidden>Aún no tienes clientes registrados.<br>Aparecen solos cuando guardas una cotización con teléfono.</p>
+    </section>
+ 
   </main>
+ 
+  <!-- Dock de navegación -->
+  <nav class="dock" role="tablist">
+    <button class="tab active" data-tab="resumen" role="tab" aria-selected="true" aria-label="Resumen">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9"/></svg>
+    </button>
+    <button class="tab" data-tab="nueva" role="tab" aria-selected="false" aria-label="Nueva cotización">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+    <button class="tab" data-tab="guardadas" role="tab" aria-selected="false" aria-label="Activas">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h6"/></svg>
+      <span class="dock-badge" id="tabCount" hidden>0</span>
+    </button>
+    <button class="tab" data-tab="pedidos" role="tab" aria-selected="false" aria-label="Pedidos">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3.5 7.5 8.5-4 8.5 4-8.5 4-8.5-4Z"/><path d="M3.5 7.5V16l8.5 4 8.5-4V7.5"/><path d="M12 11.5V20"/></svg>
+      <span class="dock-badge" id="pedidosCount" hidden>0</span>
+    </button>
+    <button class="tab" data-tab="lotes" role="tab" aria-selected="false" aria-label="Lotes">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8h11v8H2z"/><path d="M13 11h4l3 3v2h-7z"/><circle cx="6.5" cy="18" r="1.6"/><circle cx="17" cy="18" r="1.6"/></svg>
+      <span class="dock-badge" id="lotesCount" hidden>0</span>
+    </button>
+    <button class="tab" data-tab="clientes" role="tab" aria-selected="false" aria-label="Clientes">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.5 3-6 7-6s7 2.5 7 6"/></svg>
+      <span class="dock-badge" id="clientesCount" hidden>0</span>
+    </button>
+  </nav>
 </div>
  
 <!-- ===================== MODAL: CONFIGURACIÓN ===================== -->
@@ -468,6 +482,21 @@
   </div>
 </div>
  
+<!-- ===================== MODAL: CLIENTE (detalle + historial) ===================== -->
+<div class="modal-backdrop" id="clienteModal" hidden>
+  <div class="modal modal-wide">
+    <div class="modal-head">
+      <h2 id="clienteModalTitle">Cliente</h2>
+      <button class="icon-btn" id="closeClienteModal" aria-label="Cerrar">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="order-info-grid" id="clienteInfoGrid"></div>
+      <div class="section-label"><span>Historial</span></div>
+      <div id="clienteHistoryList" class="saved-list"></div>
+    </div>
+  </div>
+</div>
+ 
 <div class="toast" id="toast"></div>
  
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -475,3 +504,4 @@
 <script type="module" src="js/app.js"></script>
 </body>
 </html>
+ 
