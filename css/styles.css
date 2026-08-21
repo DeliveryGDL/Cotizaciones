@@ -1,3 +1,11 @@
+/* =========================================================
+   DELIVERY GDL · Cotizador — Design tokens
+   Minimalista: fondo blanco, tinta, muy pocos colores.
+   El color solo se usa con significado: verde = pagado/positivo,
+   rojo = eliminar/negativo. Todo lo demás es tinta y grises.
+   Tipografía: Space Grotesk (display) + Inter (UI) + IBM Plex Mono (datos)
+   ========================================================= */
+ 
 :root{
   --ink: #111114;
   --ink-soft: #55555c;
@@ -11,7 +19,7 @@
   --warn: #b8860b;
   --purple: #7c5cbf;
  
-  --font-display: 'Space Grotesk', system-ui, sans-serif;
+  --font-display: 'Manrope', system-ui, sans-serif;
   --font-body: 'Inter', system-ui, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
  
@@ -399,16 +407,24 @@ input, select, textarea{ font-family: inherit; }
 .dash-stat .v.good{ color: var(--success); }
 .dash-stat .l{ font-size:11px; color: var(--muted); }
  
-.dash-stages{ display:flex; flex-wrap:wrap; gap:8px; padding-bottom:18px; margin-bottom:18px; border-bottom:1px solid var(--line); }
-.dash-stage-pill{
-  display:flex; align-items:center; gap:6px; border:1px solid var(--line-strong);
-  border-radius:999px; padding:5px 11px 5px 9px; font-size:12px; color: var(--ink-soft);
+.dash-pipeline{
+  display:flex; justify-content:space-between; gap:4px;
+  padding-bottom:18px; margin-bottom:18px; border-bottom:1px solid var(--line);
 }
-.dash-stage-pill .dot{ width:6px; height:6px; border-radius:50%; background: var(--muted); }
-.dash-stage-pill.done .dot{ background: var(--success); }
-.dash-stage-pill b{ font-family: var(--font-mono); color: var(--ink); }
+.dash-pipe-step{ display:flex; flex-direction:column; align-items:center; gap:3px; flex:1; }
+.dash-pipe-step .v{ font-family: var(--font-mono); font-weight:700; font-size:16px; color: var(--ink); }
+.dash-pipe-step .l{ font-size:9.5px; color: var(--muted); text-transform:uppercase; letter-spacing:0.03em; text-align:center; }
  
-.dash-upcoming .saved-list{ margin-top:4px; }
+.dash-upcoming{ display:flex; flex-direction:column; }
+.dash-row{
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  padding:11px 0; border-bottom:1px solid var(--line); cursor:pointer;
+}
+.dash-row:last-child{ border-bottom:none; }
+.dash-row:hover .dash-row-name{ color: var(--ink-soft); }
+.dash-row-name{ font-size:13.5px; font-weight:600; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.dash-row-date{ font-size:11.5px; color: var(--muted); font-family: var(--font-mono); white-space:nowrap; }
+.dash-row-amt{ font-size:13px; font-weight:700; font-family: var(--font-mono); white-space:nowrap; }
  
 /* ---------- Línea de tiempo del lote ---------- */
 .lote-timeline{ display:flex; flex-direction:column; gap:0; margin: 4px 0 4px; }
@@ -563,6 +579,40 @@ input, select, textarea{ font-family: inherit; }
 .login-card .btn-primary{ margin-top:4px; }
 .login-card .btn-primary:disabled{ opacity:0.5; }
  
+/* ---------- PDF (plantilla propia, fuera de pantalla) ---------- */
+.pdf-page{
+  width: 760px; background:#ffffff; color:#111114;
+  font-family: 'Inter', system-ui, sans-serif;
+  padding: 44px 46px;
+}
+.pdf-head{ display:flex; justify-content:space-between; align-items:flex-start; }
+.pdf-brand{ font-family: 'Manrope', system-ui, sans-serif; font-weight:800; font-size:20px; }
+.pdf-sub{ font-size:11.5px; color:#9a9aa2; margin-top:3px; }
+.pdf-head-right{ text-align:right; }
+.pdf-folio{ font-family: 'IBM Plex Mono', monospace; font-size:12px; font-weight:600; }
+.pdf-date{ font-size:11px; color:#9a9aa2; margin-top:2px; font-family: 'IBM Plex Mono', monospace; }
+.pdf-client-row{ display:flex; justify-content:space-between; margin-top:22px; font-size:12.5px; }
+.pdf-client-row span{ color:#9a9aa2; }
+.pdf-client-row strong{ font-weight:700; }
+.pdf-divider{ border-top:1px solid #ececef; margin:16px 0; }
+.pdf-items{ display:flex; flex-direction:column; gap:16px; }
+.pdf-item{ display:flex; gap:14px; align-items:center; }
+.pdf-thumb{ width:48px; height:48px; border-radius:6px; overflow:hidden; flex-shrink:0; background:#fafafa; border:1px solid #ececef; }
+.pdf-thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
+.pdf-item-info{ flex:1; min-width:0; }
+.pdf-item-name{ font-size:13px; font-weight:600; }
+.pdf-item-calc{ font-size:11px; color:#9a9aa2; margin-top:2px; font-family: 'IBM Plex Mono', monospace; }
+.pdf-item-amount{ font-size:13px; font-weight:700; font-family: 'IBM Plex Mono', monospace; white-space:nowrap; }
+.pdf-empty{ text-align:center; color:#9a9aa2; font-size:12.5px; padding:20px 0; }
+.pdf-totals{ display:flex; flex-direction:column; gap:5px; }
+.pdf-trow{ display:flex; justify-content:space-between; font-size:12.5px; font-family: 'IBM Plex Mono', monospace; }
+.pdf-trow.muted{ color:#9a9aa2; }
+.pdf-trow.discount{ color:#d1453b; }
+.pdf-trow.total{ font-family: 'Manrope', system-ui, sans-serif; font-weight:800; font-size:17px; border-top:1.5px solid #111114; padding-top:10px; margin-top:4px; }
+.pdf-notes{ margin-top:16px; font-size:11.5px; color:#55555c; background:#fafafa; border-radius:8px; padding:10px 12px; }
+.pdf-thanks{ margin-top:20px; text-align:center; font-family: 'Manrope', system-ui, sans-serif; font-weight:700; font-size:12.5px; color:#55555c; }
+.pdf-pageno{ margin-top:28px; text-align:center; font-size:10px; color:#c7c7cc; font-family: 'IBM Plex Mono', monospace; }
+ 
 /* ---------- Toast ---------- */
 .toast{
   position:fixed; left:50%; bottom:100px; transform: translate(-50%, 20px);
@@ -571,4 +621,3 @@ input, select, textarea{ font-family: inherit; }
   transition: all .25s ease; z-index:100; white-space:nowrap;
 }
 .toast.show{ opacity:1; transform: translate(-50%, 0); }
- 
