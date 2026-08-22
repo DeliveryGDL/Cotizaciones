@@ -1,3 +1,10 @@
+/* =========================================================
+   DELIVERY GDL · Cotizador — lógica de la app
+   Persistencia: Firestore (sincronizado entre dispositivos, con
+   caché offline). Las claves antiguas de localStorage solo se leen
+   una vez, para migrar datos previos a la nube en el primer login.
+   ========================================================= */
+ 
 import {
   auth, db,
   signInWithEmailAndPassword, onAuthStateChanged, signOut,
@@ -813,6 +820,27 @@ import {
   }
  
   /* ---------------- Dashboard (Resumen) ---------------- */
+  const STAGE_SHORT = {
+    preparacion: "Prep.",
+    comprado: "Comprado",
+    en_camino: "Camino",
+    en_mexico: "México",
+    listo_entrega: "Listo",
+  };
+ 
+  function dashRowEl(q) {
+    const { total } = computeTotals(q.items, q.discount);
+    const row = document.createElement("div");
+    row.className = "dash-row";
+    row.innerHTML = `
+      <span class="dash-row-name">${escapeHtml(q.client)}</span>
+      <span class="dash-row-date">${formatDate(q.pedido.fechaEstimada)}</span>
+      <span class="dash-row-amt">${money(total)}</span>
+    `;
+    row.addEventListener("click", () => openViewer(q.id));
+    return row;
+  }
+ 
   function renderDashboard(activas, pedidos) {
     const porCobrar = pedidos.reduce((s, q) => s + Math.max(computeTotals(q.items, q.discount).total - abonosTotal(q), 0), 0);
     const cobradoTotal = pedidos.reduce((s, q) => s + abonosTotal(q), 0);
@@ -829,35 +857,31 @@ import {
  
       <div class="dash-stats">
         <div class="dash-stat"><span class="v">${activas.length}</span><span class="l">Activas</span></div>
+        <div class="dash-stat"><span class="v">${pedidos.length}</span><span class="l">Pedidos</span></div>
         <div class="dash-stat"><span class="v good">${money(cobradoTotal)}</span><span class="l">Cobrado</span></div>
-        <div class="dash-stat"><span class="v">${lotesActivos}</span><span class="l">Lotes activos</span></div>
-        <div class="dash-stat"><span class="v ${gananciaLotes >= 0 ? "good" : ""}">${money(gananciaLotes)}</span><span class="l">Ganancia lotes</span></div>
+        <div class="dash-stat"><span class="v ${gananciaLotes >= 0 ? "good" : ""}">${money(gananciaLotes)}</span><span class="l">Ganancia · ${lotesActivos} lote${lotesActivos === 1 ? "" : "s"}</span></div>
       </div>
  
       ${pedidos.length > 0 ? `
-        <div class="dash-stages">
+        <div class="dash-pipeline">
           ${PEDIDO_STAGES.map((s) => {
             const count = pedidos.filter((q) => (q.pedidoStatus || "preparacion") === s.key).length;
-            return `<span class="dash-stage-pill ${s.key === "listo_entrega" ? "done" : ""}"><span class="dot"></span>${s.label} <b>${count}</b></span>`;
+            return `<div class="dash-pipe-step"><span class="v">${count}</span><span class="l">${STAGE_SHORT[s.key]}</span></div>`;
           }).join("")}
         </div>
       ` : ""}
  
-      <div class="dash-upcoming">
-        <div class="dash-label">Próximas entregas</div>
-        <div id="upcomingList" class="saved-list"></div>
-      </div>
+      <div class="dash-upcoming" id="dashUpcoming"></div>
     `;
  
-    const upcomingListEl = document.getElementById("upcomingList");
     const upcoming = pedidos
       .filter((q) => q.pedido && q.pedido.fechaEstimada)
       .sort((a, b) => new Date(a.pedido.fechaEstimada) - new Date(b.pedido.fechaEstimada))
       .slice(0, 5);
-    if (upcoming.length === 0) {
-      upcomingListEl.innerHTML = `<p class="empty-msg" style="margin-top:8px;">No hay entregas con fecha programada.</p>`;
-    } else {
-      upcoming.forEach((q) => upcomingListEl.appendChild(savedCardEl(q)));
+    const upcomingWrap = document.getElementById("dashUpcoming");
+    if (upcoming.length > 0) {
+      upcomingWrap.innerHTML = `<div class="dash-label">Por entregar</div>`;
+      upcoming.forEach((q) => upcomingWrap.appendChild(dashRowEl(q)));
     }
   }
  
@@ -949,7 +973,7 @@ import {
   document.getElementById("viewerPdfBtn").addEventListener("click", () => {
     const q = quotes.find((x) => x.id === viewerQuoteId);
     if (!q) return;
-    generatePDF(viewerTicket, `${q.folioLabel}_${q.client}`);
+    generatePDF(q, `${q.folioLabel}_${q.client}`);
   });
  
   /* ---------------- Enviar por WhatsApp ----------------
@@ -989,7 +1013,7 @@ import {
     lines.push("En un momento te mando el PDF por aquí mismo. ¡Gracias!");
     const message = lines.join("\n");
  
-    await generatePDF(viewerTicket, `${q.folioLabel}_${q.client}`);
+    await generatePDF(q, `${q.folioLabel}_${q.client}`);
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, "_blank");
     toast("Se abrió el chat del cliente — adjunta el PDF descargado con 📎 y da enviar");
   });
@@ -1443,24 +1467,101 @@ import {
   });
  
   /* ---------------- Generar PDF ---------------- */
-  async function generatePDF(ticketEl, filenameBase) {
+  /* ---------------- Generar PDF (paginado, tipo hoja A4, 20 productos por hoja) ---------------- */
+  const PDF_ITEMS_PER_PAGE = 20;
+  const PDF_PAGE_WIDTH_PX = 794; // ancho real de una hoja A4 a 96dpi
+ 
+  function pdfPageHTML(quote, pageItems, pageIndex, totalPages, totals, showTotals) {
+    const { subtotal, discountAmount, total } = totals;
+    const hasDiscount = quote.discount && quote.discount.enabled && discountAmount > 0;
+    const isFirst = pageIndex === 0;
+ 
+    const itemsHTML = pageItems.map((it) => `
+      <div class="pdf-item">
+        <div class="pdf-thumb ${it.img ? "" : "empty"}">${it.img ? `<img src="${it.img}" alt="">` : ""}</div>
+        <div class="pdf-item-info">
+          <div class="pdf-item-name">${escapeHtml(it.name)}</div>
+          <div class="pdf-item-calc">${it.qty} × ${money(it.price)}</div>
+        </div>
+        <div class="pdf-item-amount">${money(it.qty * it.price)}</div>
+      </div>
+    `).join("");
+ 
+    const totalsHTML = showTotals ? `
+      <div class="pdf-divider"></div>
+      <div class="pdf-totals">
+        ${hasDiscount ? `
+          <div class="pdf-trow muted"><span>Subtotal</span><span>${money(subtotal)}</span></div>
+          <div class="pdf-trow discount"><span>Descuento${quote.discount.type === "percent" ? ` (${quote.discount.value}%)` : ""}</span><span>&minus;${money(discountAmount)}</span></div>
+        ` : ""}
+        <div class="pdf-trow total"><span>Total</span><span>${money(total)}</span></div>
+      </div>
+      ${quote.notes ? `<div class="pdf-notes">${escapeHtml(quote.notes)}</div>` : ""}
+      <div class="pdf-thanks">${escapeHtml(settings.footer)}</div>
+    ` : "";
+ 
+    return `
+      <div class="pdf-page">
+        <div class="pdf-head">
+          <div>
+            <div class="pdf-brand">${escapeHtml(settings.name)}</div>
+            <div class="pdf-sub">${escapeHtml([settings.zone, settings.phone].filter(Boolean).join(" · "))}</div>
+          </div>
+          <div class="pdf-head-right">
+            <div class="pdf-folio">${escapeHtml(quote.folioLabel)}</div>
+            <div class="pdf-date">${formatDate(quote.date)}</div>
+          </div>
+        </div>
+        ${isFirst ? `<div class="pdf-client-row"><span>Cliente</span><strong>${escapeHtml(quote.client || "—")}</strong></div>` : ""}
+        <div class="pdf-divider"></div>
+        <div class="pdf-items">${itemsHTML || `<div class="pdf-empty">Sin productos</div>`}</div>
+        ${totalsHTML}
+        ${totalPages > 1 ? `<div class="pdf-pageno">Página ${pageIndex + 1} de ${totalPages}</div>` : ""}
+      </div>
+    `;
+  }
+ 
+  async function generatePDF(quote, filenameBase) {
     const btns = [document.getElementById("pdfBtn"), document.getElementById("viewerPdfBtn")];
     btns.forEach((b) => b && (b.disabled = true));
     toast("Generando PDF…");
+ 
+    const container = document.createElement("div");
+    container.style.position = "fixed";
+    container.style.left = "-99999px";
+    container.style.top = "0";
+    container.style.width = PDF_PAGE_WIDTH_PX + "px";
+    document.body.appendChild(container);
+ 
     try {
-      const canvas = await html2canvas(ticketEl, {
-        scale: 2,
-        backgroundColor: "#FBF8F2",
-        useCORS: true,
-      });
-      const imgData = canvas.toDataURL("image/jpeg", 0.92);
+      // Los productos sin nombre no se incluyen en el PDF.
+      const items = (quote.items || []).filter((it) => (it.name || "").trim().length > 0);
+      const chunks = [];
+      for (let i = 0; i < items.length; i += PDF_ITEMS_PER_PAGE) chunks.push(items.slice(i, i + PDF_ITEMS_PER_PAGE));
+      if (chunks.length === 0) chunks.push([]);
+      // Si la última hoja quedó completamente llena, se agrega una hoja extra
+      // solo para el total — así nunca se ve amontonado con el resumen.
+      if (chunks[chunks.length - 1].length === PDF_ITEMS_PER_PAGE) chunks.push([]);
+ 
+      const totals = computeTotals(items, quote.discount);
+ 
       const { jsPDF } = window.jspdf;
-      const pdf = new jsPDF({
-        unit: "px",
-        format: [canvas.width, canvas.height],
-        hotfixes: ["px_scaling"],
-      });
-      pdf.addImage(imgData, "JPEG", 0, 0, canvas.width, canvas.height);
+      let pdf = null;
+ 
+      for (let i = 0; i < chunks.length; i++) {
+        const isLastPage = i === chunks.length - 1;
+        container.innerHTML = pdfPageHTML(quote, chunks[i], i, chunks.length, totals, isLastPage);
+        const pageEl = container.firstElementChild;
+        const canvas = await html2canvas(pageEl, { scale: 2, backgroundColor: "#ffffff", useCORS: true });
+        const imgData = canvas.toDataURL("image/jpeg", 0.92);
+        if (!pdf) {
+          pdf = new jsPDF({ unit: "px", format: [canvas.width, canvas.height], hotfixes: ["px_scaling"] });
+        } else {
+          pdf.addPage([canvas.width, canvas.height]);
+        }
+        pdf.addImage(imgData, "JPEG", 0, 0, canvas.width, canvas.height);
+      }
+ 
       const safeName = (filenameBase || "cotizacion").replace(/[^a-z0-9_\-]+/gi, "_");
       pdf.save(`Cotizacion_${safeName}.pdf`);
       toast("PDF generado ✓");
@@ -1468,6 +1569,7 @@ import {
       console.error(err);
       toast("No se pudo generar el PDF");
     } finally {
+      document.body.removeChild(container);
       btns.forEach((b) => b && (b.disabled = false));
     }
   }
@@ -1478,7 +1580,7 @@ import {
       return;
     }
     const client = document.getElementById("clientName").value.trim() || "cliente";
-    generatePDF(ticketPreviewEl, `${folioStr(settings.nextFolio)}_${client}`);
+    generatePDF(buildQuoteFromForm(), `${folioStr(settings.nextFolio)}_${client}`);
   });
  
   /* ---------------- Inicialización ---------------- */
@@ -1589,11 +1691,18 @@ import {
     try {
       await signInWithEmailAndPassword(
         auth,
-        document.getElementById("loginEmail").value.trim(),
+        document.getElementById("loginEmail").value.trim().toLowerCase(),
         document.getElementById("loginPassword").value
       );
     } catch (err) {
-      loginErrorEl.textContent = "Correo o contraseña incorrectos.";
+      const code = err && err.code ? err.code : "";
+      if (code.includes("network")) {
+        loginErrorEl.textContent = "Sin conexión a internet — revisa tu señal e intenta de nuevo.";
+      } else if (code.includes("too-many-requests")) {
+        loginErrorEl.textContent = "Demasiados intentos. Espera un momento y vuelve a intentar.";
+      } else {
+        loginErrorEl.textContent = "Correo o contraseña incorrectos.";
+      }
       loginErrorEl.hidden = false;
     } finally {
       loginSubmitBtn.disabled = false;
@@ -1607,4 +1716,3 @@ import {
     signOut(auth);
   });
 })();
- 
